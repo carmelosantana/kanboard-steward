@@ -43,13 +43,16 @@ class StewardFakeTransport implements ClientInterface
 
 class StewardThrowingTransport implements ClientInterface
 {
+    public const DEFAULT = 'SMTP auth failed for user=ops password=hunter2 (api_key: sk-live-123)';
+    public static string $message = self::DEFAULT;
+
     public function __construct($container)
     {
     }
 
     public function sendEmail($recipientEmail, $recipientName, $subject, $html, $authorName, $authorEmail = '')
     {
-        throw new RuntimeException('SMTP auth failed for user=ops password=hunter2 (api_key: sk-live-123)',
+        throw new RuntimeException(self::$message,
             0, new RuntimeException('Authorization: Bearer abc.def'));
     }
 }
@@ -73,6 +76,7 @@ class TestEmailTest extends Base
         $this->container['emailClient']->setTransport('stewardthrow', StewardThrowingTransport::class);
         $this->container['memoryCache']->flush();
         StewardFakeTransport::$sent = [];
+        StewardThrowingTransport::$message = StewardThrowingTransport::DEFAULT;
 
         $this->log = new StewardTestEmailLogSink();
         $logger = new Logger();
@@ -283,6 +287,34 @@ class TestEmailTest extends Base
         $this->assertStringNotContainsString('hunter2', $logged);
         $this->assertStringNotContainsString('sk-live-123', $logged);
         $this->assertStringNotContainsString('Bearer', $logged);
+        $this->assertStringNotContainsString('abc.def', $logged);
+        $this->assertStringNotContainsString('ops', $logged);
+    }
+
+    public static function loggedShapes(): array
+    {
+        return [
+            'url userinfo' => ['Connection to smtp://ops:hunter2@mail.example.test failed', ['ops:', 'hunter2'], 'smtp://[redacted]@'],
+            'auth plain' => ['Expected 235 after AUTH PLAIN AG9wcwBodW50ZXIy', ['AG9wcwBodW50ZXIy'], 'AUTH PLAIN [redacted]'],
+            'quoted password' => ['password="correct horse" rejected', ['correct', 'horse'], 'password=[redacted]'],
+            'basic header' => ['Authorization: Basic b3BzOmh1bnRlcjI=', ['Basic', 'b3BzOmh1bnRlcjI='], 'Authorization=[redacted]'],
+        ];
+    }
+
+    /** @dataProvider loggedShapes */
+    public function testLoggedFailureNeverCarriesTheSecret(string $message, array $gone, string $kept): void
+    {
+        StewardThrowingTransport::$message = $message;
+        $this->container['configModel']->save(['mail_transport' => 'stewardthrow']);
+        $this->container['memoryCache']->flush();
+        $this->send();
+        $line = implode("\n", array_column($this->log->lines, 1));
+        $this->assertStringContainsString('Steward test email ref', $line);
+        $this->assertStringContainsString($kept, $line);
+        foreach ($gone as $secret) {
+            $this->assertStringNotContainsString($secret, $line);
+            $this->assertStringNotContainsString($secret, (string) ($this->flash()['failure'] ?? ''));
+        }
     }
 
     public function testUnknownTransportFailsCleanly(): void

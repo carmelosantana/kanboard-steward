@@ -4,6 +4,7 @@ namespace Kanboard\Plugin\Steward\Controller;
 use Kanboard\Controller\BaseController;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
+use Kanboard\Plugin\Steward\Model\Redactor;
 use Throwable;
 
 /**
@@ -15,8 +16,6 @@ class StewardTestEmailController extends BaseController
     public const COOLDOWN = 30;
     public const METADATA_KEY = 'steward_test_email_at';
     public const SUBJECT = 'Kanboard test email';
-    /** Anything resembling a credential in an exception message is replaced before it is logged. */
-    public const REDACT = '/(password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*\S+/i';
 
     public function send(): void
     {
@@ -29,8 +28,7 @@ class StewardTestEmailController extends BaseController
         if (! $this->request->isPost()) {
             throw new AccessForbiddenException();
         }
-        // The button can sit inside core's email settings form (formaction), so only the token is read; any posted
-        // recipient field is never looked at.
+        // Only the token is read: any posted recipient field is never looked at (Decision 10).
         $this->checkCSRFForm();
 
         $userId = (int) $this->userSession->getId();
@@ -79,12 +77,13 @@ class StewardTestEmailController extends BaseController
         $this->redirectBack();
     }
 
-    /** The exception chain's messages, credentials redacted. */
+    /** The exception chain's messages, credentials (and the configured SMTP login) redacted. */
     private static function redact(Throwable $e): string
     {
+        $redactor = new Redactor([MAIL_SMTP_USERNAME, MAIL_SMTP_PASSWORD]);
         $parts = [];
         for ($t = $e; $t !== null; $t = $t->getPrevious()) {
-            $parts[] = get_class($t).': '.preg_replace(self::REDACT, '$1=[redacted]', $t->getMessage());
+            $parts[] = get_class($t).': '.$redactor->redact($t->getMessage());
         }
         return implode(' <- ', $parts);
     }
