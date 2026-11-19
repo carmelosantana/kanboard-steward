@@ -2,11 +2,19 @@
 namespace Kanboard\Plugin\Steward;
 
 use Kanboard\Core\Plugin\Base;
+use Kanboard\Core\Security\Role;
+use Kanboard\Plugin\Steward\Model\FeatureFlags;
 
 class Plugin extends Base
 {
     public function initialize(): void
     {
+        $this->container['stewardFeatures'] = fn ($c) => new FeatureFlags($c);
+
+        $this->applicationAccessMap->add('StewardSettingsController', ['show', 'save'], Role::APP_ADMIN);
+        $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
+        $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
+        $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
     }
 
     public function getPluginName(): string        { return 'Steward'; }
