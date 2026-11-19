@@ -9,3 +9,8 @@
     <?= $this->url->link(t('Steward branding'), 'StewardBrandingController', 'show', ['plugin' => 'Steward']) ?>
 </li>
 <?php endif ?>
+<?php if ($this->app->stewardFeatures->isEnabled('banner')): ?>
+<li <?= $this->app->checkMenuSelection('StewardBannerController', 'show', 'Steward') ?>>
+    <?= $this->url->link(t('Steward banner'), 'StewardBannerController', 'show', ['plugin' => 'Steward']) ?>
+</li>
+<?php endif ?>

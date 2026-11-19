@@ -31,6 +31,27 @@ final class SettingsSchema
         'steward_favicon_hash',
     ];
 
+    /**
+     * Announcement banner keys (spec §7) => default. Only the banner page writes them, through filterBanner();
+     * filter() never passes them. Start and end are Unix timestamps, '' for open-ended.
+     */
+    public const BANNER = [
+        'steward_banner_message' => '',
+        'steward_banner_level' => 'info',
+        'steward_banner_start' => '',
+        'steward_banner_end' => '',
+        'steward_banner_dismissible' => '1',
+        'steward_banner_login' => '0',
+        'steward_banner_public' => '0',
+    ];
+
+    public const BANNER_LEVELS = ['info', 'warning'];
+
+    /** Characters (mb_strlen) in the raw message. */
+    public const BANNER_MESSAGE_MAX = 500;
+
+    private const BANNER_SWITCHES = ['steward_banner_dismissible', 'steward_banner_login', 'steward_banner_public'];
+
     public static function featureKey(string $feature): string
     {
         return 'steward_'.$feature;
@@ -49,7 +70,7 @@ final class SettingsSchema
         foreach (self::BRANDING as $key) {
             $defaults[$key] = '';
         }
-        return $defaults;
+        return $defaults + self::BANNER;
     }
 
     /**
@@ -73,5 +94,41 @@ final class SettingsSchema
             }
         }
         return $clean;
+    }
+
+    /**
+     * The banner form's values, all BANNER keys or an error (already translated) and nothing else. Times come in
+     * the admin's format and timezone; $toTimestamp turns one into a Unix timestamp, 0 when it can't.
+     *
+     * @param callable(string):int $toTimestamp
+     * @return array{values:array<string,string>,error:?string}
+     */
+    public static function filterBanner(array $values, callable $toTimestamp): array
+    {
+        $message = is_string($values['steward_banner_message'] ?? null) ? $values['steward_banner_message'] : '';
+        if (mb_strlen($message, 'UTF-8') > self::BANNER_MESSAGE_MAX) {
+            return ['values' => [], 'error' => t('The message is too long (max %d characters)', self::BANNER_MESSAGE_MAX)];
+        }
+        $level = $values['steward_banner_level'] ?? null;
+        $clean = [
+            'steward_banner_message' => trim($message),
+            'steward_banner_level' => in_array($level, self::BANNER_LEVELS, true) ? $level : 'info',
+        ];
+        foreach (['steward_banner_start', 'steward_banner_end'] as $key) {
+            $raw = is_string($values[$key] ?? null) ? trim($values[$key]) : '';
+            $time = $raw === '' ? 0 : (int) $toTimestamp($raw);
+            if ($raw !== '' && $time <= 0) {
+                return ['values' => [], 'error' => t('Enter the start and end times in the format shown, or leave them empty')];
+            }
+            $clean[$key] = $time === 0 ? '' : (string) $time;
+        }
+        if ($clean['steward_banner_start'] !== '' && $clean['steward_banner_end'] !== ''
+            && (int) $clean['steward_banner_end'] <= (int) $clean['steward_banner_start']) {
+            return ['values' => [], 'error' => t('The end time must be after the start time')];
+        }
+        foreach (self::BANNER_SWITCHES as $key) {
+            $clean[$key] = ! empty($values[$key]) ? '1' : '0';
+        }
+        return ['values' => $clean, 'error' => null];
     }
 }

@@ -79,7 +79,7 @@ class SettingsTest extends Base
         }
         $this->assertSame('60', $defaults['steward_switch_idle_minutes']);
         $this->assertSame('180', $defaults['steward_audit_retention_days']);
-        $this->assertCount(count(SettingsSchema::FEATURES) + 2 + count(SettingsSchema::BRANDING), $defaults);
+        $this->assertCount(count(SettingsSchema::FEATURES) + 2 + count(SettingsSchema::BRANDING) + count(SettingsSchema::BANNER), $defaults);
 
         $flags = $this->container['stewardFeatures'];
         $this->assertInstanceOf(FeatureFlags::class, $flags);

@@ -125,7 +125,12 @@ class PublicPage extends Base
     private function layout(string $template, array $params, array $tokens, bool $indexable): string
     {
         $this->hook->on('template:layout:css', ['template' => 'plugins/Steward/Assets/css/public.css']);
-        $html = $this->helper->layout->app($template, $params + ['no_layout' => true, 'not_editable' => true]);
+        $html = $this->helper->layout->app($template, $params + [
+            'no_layout' => true,
+            'not_editable' => true,
+            // Spec §7, Decision 20: the announcement banner when set to show here; forViewer() never offers Dismiss here.
+            'steward_announcement' => $this->container['stewardBanner']->forViewer(Banner::PUBLIC),
+        ]);
         return $this->finish($html, $tokens, $indexable);
     }
 }

@@ -35,6 +35,9 @@ class FeatureGate extends Base
         'StewardExploreController::index' => 'explore',
         'StewardExploreController::show' => 'explore',
         'StewardTestEmailController::send' => 'test_email',
+        'StewardBannerController::show' => 'banner',
+        'StewardBannerController::save' => 'banner',
+        'StewardBannerController::dismiss' => 'banner',
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */

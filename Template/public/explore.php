@@ -1,6 +1,7 @@
 <?php
 /* Project directory (spec §5.4): each listed project's name, tagline and link. Nothing else. */
 ?>
+<?= $this->render('Steward:banner/announcement', ['steward_announcement' => $steward_announcement ?? null]) ?>
 <main class="steward-public">
     <?= $this->render('Steward:public/brand') ?>
     <h1 class="steward-public-title"><?= t('Explore') ?></h1>

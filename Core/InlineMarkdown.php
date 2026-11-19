@@ -1,0 +1,76 @@
+<?php
+namespace Kanboard\Plugin\Steward\Core;
+
+/**
+ * Spec §7: the announcement banner's one-line renderer. Everything is escaped first; then only *em* or _em_,
+ * **strong** or __strong__, `code` (nothing formatted inside) and [text](url) with an http(s) URL that has a host
+ * become markup. Anything else (HTML, images, headings, lists, code blocks, Mermaid, other link schemes) stays
+ * literal text. Newlines become spaces.
+ */
+final class InlineMarkdown
+{
+    /** Marks a finished fragment while the rest is converted; control characters never survive into the text. */
+    private const MARK = "\x01";
+
+    public static function render(string $text): string
+    {
+        // Single line; every other control character becomes a space too, so MARK cannot be forged.
+        $text = (string) preg_replace('/[\x00-\x1f\x7f]+/u', ' ', str_replace("\r\n", "\n", $text));
+        $html = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $fragments = [];
+        $keep = function (string $fragment) use (&$fragments): string {
+            $fragments[] = $fragment;
+            return self::MARK.(count($fragments) - 1).self::MARK;
+        };
+
+        // `code`, but not a run of two or more backticks (a fenced block stays text).
+        $html = (string) preg_replace_callback('/(?<!`)`([^`]+)`(?!`)/u',
+            fn ($m) => $keep('<code>'.$m[1].'</code>'), $html);
+
+        // [text](url), not ![image](url). The URL has no spaces or parentheses.
+        $html = (string) preg_replace_callback('/(?<!!)\[([^\[\]]+)\]\(([^()\s]+)\)/u', function ($m) use ($keep) {
+            $url = htmlspecialchars_decode($m[2], ENT_QUOTES);
+            if (! self::isWebUrl($url)) {
+                return $m[0];
+            }
+            return $keep('<a href="'.htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" rel="noopener noreferrer">'
+                .self::emphasis($m[1]).'</a>');
+        }, $html);
+
+        $html = self::emphasis($html);
+
+        // Fragments never nest a MARK pair, so one pass restores them all.
+        return (string) preg_replace_callback('/'.self::MARK.'(\d+)'.self::MARK.'/',
+            fn ($m) => $fragments[(int) $m[1]], $html);
+    }
+
+    /** True for an http(s) URL with a host, decided on what a browser would see (Task 16's normalisation). */
+    public static function isWebUrl(string $url): bool
+    {
+        $decoded = $url;
+        do {
+            $previous = $decoded;
+            $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        } while ($decoded !== $previous);
+        $normalised = strtolower((string) preg_replace('/[\x00-\x20\x7f]+/', '', $decoded));
+        $normalised = str_replace('\\', '/', $normalised);
+
+        if ($normalised !== strtolower(trim($url)) || ! preg_match('#^https?://[^/?\#]#', $normalised)) {
+            return false;
+        }
+        $host = parse_url($normalised, PHP_URL_HOST);
+        return is_string($host) && $host !== '';
+    }
+
+    private static function emphasis(string $html): string
+    {
+        $patterns = [
+            '/\*\*(?=\S)(.+?)(?<=\S)\*\*/u' => '<strong>$1</strong>',
+            '/(?<![\p{L}\p{N}_])__(?=\S)(.+?)(?<=\S)__(?![\p{L}\p{N}_])/u' => '<strong>$1</strong>',
+            '/\*(?=[^\s*])(.+?)(?<=[^\s*])\*/u' => '<em>$1</em>',
+            '/(?<![\p{L}\p{N}_])_(?=[^\s_])(.+?)(?<=[^\s_])_(?![\p{L}\p{N}_])/u' => '<em>$1</em>',
+        ];
+        return (string) preg_replace(array_keys($patterns), array_values($patterns), $html);
+    }
+}

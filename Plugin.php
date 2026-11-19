@@ -6,6 +6,7 @@ use Kanboard\Plugin\Steward\Helper\StewardBrandingHelper;
 use Kanboard\Plugin\Steward\Helper\StewardTextHelper;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
+use Kanboard\Plugin\Steward\Model\Banner;
 use Kanboard\Plugin\Steward\Model\Branding;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
@@ -28,6 +29,7 @@ class Plugin extends Base
         $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
         $this->container['stewardSwitching'] = fn ($c) => new SwitchService($c);
         $this->container['stewardBranding'] = fn ($c) => new Branding($c);
+        $this->container['stewardBanner'] = fn ($c) => new Banner($c);
         // Always registered so other plugins can call it; it answers '' while branding is off.
         $this->helper->register('stewardBranding', StewardBrandingHelper::class);
         // Spec §4: one swap of the text helper covers templates, notification emails and the editor preview.
@@ -76,6 +78,16 @@ class Plugin extends Base
                 'callable' => fn () => ['steward_test_email_redirect' => $this->testEmailRedirect()],
             ]);
         }
+        if ($this->container['stewardFeatures']->isEnabled('banner')) {
+            $this->route->addRoute('steward/banner', 'StewardBannerController', 'show', 'Steward');
+            $this->route->addRoute('steward/banner/save', 'StewardBannerController', 'save', 'Steward');
+            $this->route->addRoute('steward/banner/dismiss', 'StewardBannerController', 'dismiss', 'Steward');
+            // The login page has no layout:top; the banner renders above the form (and above Steward's logo).
+            $this->hook->on('template:auth:login-form:before', [
+                'template' => 'Steward:banner/announcement',
+                'callable' => fn () => ['steward_announcement' => $this->container['stewardBanner']->forViewer(Banner::LOGIN)],
+            ]);
+        }
         // Whatever the switches say: with a feature off, FeatureGate answers these URLs with its 404, the same one an
         // unknown token or identifier gets. Without the routes core would send the paths to the login page instead.
         $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
@@ -105,10 +117,14 @@ class Plugin extends Base
             'template' => 'Steward:user/switch_button',
             'callable' => fn (array $user) => ['steward_can_switch' => $switching()->refusalFor($user) === null],
         ]);
-        // layout/top renders the switch banner first; Task 24's announcement banner goes after it there.
+        // layout/top renders the switch banner first, then the announcement banner (null while the feature is off).
         $this->hook->on('template:layout:top', [
             'template' => 'Steward:layout/top',
-            'callable' => fn () => ['steward_switched' => $switching()->isSwitched()],
+            'callable' => fn () => [
+                'steward_switched' => $switching()->isSwitched(),
+                'steward_announcement' => $this->container['stewardBanner']->forViewer(Banner::APP),
+                'steward_return_to' => $this->request->getUri(),
+            ],
         ]);
         $this->hook->on('template:header:dropdown', [
             'template' => 'Steward:header/switch_back',

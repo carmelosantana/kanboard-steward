@@ -4,6 +4,7 @@
  * get only the public-safe panel data and the project name; nothing links into the app or to core's token pages.
  */
 ?>
+<?= $this->render('Steward:banner/announcement', ['steward_announcement' => $steward_announcement ?? null]) ?>
 <main class="steward-public">
     <?= $this->render('Steward:public/brand') ?>
     <h1 class="steward-public-title"><?= $this->text->e($project['name']) ?></h1>

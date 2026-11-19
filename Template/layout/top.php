@@ -10,3 +10,7 @@
         ],
     ]) ?>
 <?php endif ?>
+<?= $this->render('Steward:banner/announcement', [
+    'steward_announcement' => $steward_announcement ?? null,
+    'steward_return_to' => $steward_return_to ?? '',
+]) ?>

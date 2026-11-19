@@ -34,6 +34,9 @@ class AclCheck extends Base
             // Anonymous directory and listed pages (spec §5.4).
             ['StewardExploreController', ['index', 'show'], Role::APP_PUBLIC],
             ['StewardTestEmailController', ['send'], Role::APP_ADMIN],
+            ['StewardBannerController', ['show', 'save'], Role::APP_ADMIN],
+            // Any signed-in user dismisses the banner for themselves.
+            ['StewardBannerController', ['dismiss'], Role::APP_USER],
         ],
         'projectAccessMap' => [
             ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],

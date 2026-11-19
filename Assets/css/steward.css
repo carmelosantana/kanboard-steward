@@ -132,3 +132,16 @@
     margin: 0;
     padding-left: 1.25em;
 }
+
+/* Announcement banner (spec §7): inline Markdown inside the shared banner; text keeps the page's colour. */
+.steward-banner-message a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.steward-banner-message code {
+    padding: 0 0.25em;
+    border-radius: 3px;
+    background: rgba(127, 127, 127, 0.18);
+    font-size: 0.95em;
+}
