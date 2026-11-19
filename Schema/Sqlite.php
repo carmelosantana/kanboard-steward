@@ -22,4 +22,6 @@ function version_1(PDO $pdo)
     $pdo->exec('CREATE INDEX steward_audit_created_at_idx ON steward_audit(created_at)');
     $pdo->exec('CREATE INDEX steward_audit_event_idx ON steward_audit(event)');
     $pdo->exec('CREATE INDEX steward_audit_switch_id_idx ON steward_audit(switch_id)');
+    // Serves the login.failure cap query (WHERE event = ? ORDER BY id DESC OFFSET 10000) run on every failure write.
+    $pdo->exec('CREATE INDEX steward_audit_event_id_idx ON steward_audit(event, id)');
 }

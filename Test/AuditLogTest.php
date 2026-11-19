@@ -77,7 +77,15 @@ class AuditLogTest extends Base
             foreach (['created_at', 'event', 'switch_id'] as $idx) {
                 $this->assertMatchesRegularExpression('/CREATE INDEX steward_audit_'.$idx.'_idx ON (dbo\.)?steward_audit\s*\('.$idx.'\)/', $src, "$d index $idx");
             }
+            $this->assertMatchesRegularExpression('/CREATE INDEX steward_audit_event_id_idx ON (dbo\.)?steward_audit\s*\(event, id\)/', $src, "$d index (event, id)");
         }
+    }
+
+    public function testMysqlTableUsesUtf8mb4LikeCore(): void
+    {
+        $src = file_get_contents(__DIR__.'/../Schema/Mysql.php');
+        $this->assertStringContainsString('ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci', $src);
+        $this->assertDoesNotMatchRegularExpression('/CHARSET=utf8(?!mb4)/', $src);
     }
 
     public function testInternalWriteRoundTrips(): void
@@ -273,6 +281,39 @@ class AuditLogTest extends Base
         $this->assertTrue($this->audit()->logInternal('login.failure', null, null, ['username' => 'x']));
         $this->assertSame(10000, $this->audit()->count(['event' => 'login.failure']));
         $this->assertSame(1, $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login.failure')->gte('created_at', time() - 60)->count());
+    }
+
+    public function testHousekeepingFailureInsideACallersTransactionNeverLosesAReportedRow(): void
+    {
+        $db = $this->container['db'];
+        $db->startTransaction();
+        // Prune is due and its settings read will fail; PicoDb cancels the open transaction on any SQL error.
+        $db->getConnection()->exec('DROP TABLE settings');
+
+        $ok = $this->audit()->logInternal('login.failure', null, null, ['username' => 'x']);
+        $inTx = $db->getConnection()->inTransaction();
+        $rows = $db->table(AuditLog::TABLE)->eq('event', 'login.failure')->count();
+        if ($inTx) {
+            $db->closeTransaction();
+        }
+
+        $this->assertTrue($ok);
+        $this->assertTrue($inTx, 'the caller\'s transaction is still open');
+        $this->assertSame(1, $rows);
+        $this->assertSame(1, $this->audit()->count(['event' => 'login.failure']), 'the row survives the commit');
+    }
+
+    public function testHousekeepingRunsOnTheNextWriteOutsideATransaction(): void
+    {
+        $this->bulk(1, 'switch.start', time() - 400 * 86400);
+        $db = $this->container['db'];
+        $db->startTransaction();
+        $this->assertTrue($this->audit()->logInternal('switch.end', 1, 2));
+        $db->closeTransaction();
+        $this->assertSame(2, $this->audit()->count([]), 'no prune inside a transaction');
+
+        $this->assertTrue($this->audit()->logInternal('switch.end', 1, 2));
+        $this->assertSame(['switch.end', 'switch.end'], array_column($this->rows(), 'event'));
     }
 
     public function testNewSwitchIdIs64HexChars(): void

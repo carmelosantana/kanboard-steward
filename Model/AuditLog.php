@@ -122,10 +122,14 @@ class AuditLog extends Base
             return false;
         }
 
-        if ($event === self::FAILURE_EVENT) {
-            $this->tryCapFailures();
+        // Housekeeping waits for the next write outside a transaction: on any SQL error PicoDb cancels the
+        // open transaction, which would roll back this row (and the caller's work) after we report success.
+        if (! $this->db->getConnection()->inTransaction()) {
+            if ($event === self::FAILURE_EVENT) {
+                $this->tryCapFailures();
+            }
+            $this->prune();
         }
-        $this->prune();
         $this->dispatch($row);
         return true;
     }
