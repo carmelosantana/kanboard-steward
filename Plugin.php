@@ -6,6 +6,7 @@ use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
+use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Subscriber\LoginSubscriber;
 
 class Plugin extends Base
@@ -19,6 +20,7 @@ class Plugin extends Base
         $this->container['stewardAudit'] = fn ($c) => new AuditLog($c);
         $this->container[AclCheck::FLAG] = false;
         $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
+        $this->container['stewardSwitching'] = fn ($c) => new SwitchService($c);
 
         // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
         $acl = $this->container['stewardAcl'];

@@ -20,6 +20,7 @@ class AclCheck extends Base
         'applicationAccessMap' => [
             ['StewardSettingsController', ['show', 'save'], Role::APP_ADMIN],
             ['StewardAuditController', ['index'], Role::APP_ADMIN],
+            ['StewardSwitchController', ['start'], Role::APP_ADMIN],
         ],
         'projectAccessMap' => [],
     ];
