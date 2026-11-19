@@ -21,8 +21,11 @@ class SwitchGuard extends Base
     public const SERVICE_UNAVAILABLE_BODY = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Service Unavailable</title></head>'
         .'<body><h1>Service Unavailable</h1></body></html>';
 
-    /** Core actions that take their ids from a JSON body (the board's drag and drop and column reorder). */
-    private const JSON_IDS = ['boardajaxcontroller::save', 'taskreordercontroller::*'];
+    /**
+     * Core actions that read task_id from the JSON body only (the board's drag and drop): the audit row takes it
+     * from the same place, so a task_id added to the query can't name a task other than the one core moves.
+     */
+    private const JSON_TASK_ID = ['boardajaxcontroller::save'];
 
     /** Leaving must always work: these run even when their action row can't be written. */
     private const LEAVING = ['steward' => ['stewardswitchcontroller::back'], '' => ['authcontroller::logout']];
@@ -89,24 +92,17 @@ class SwitchGuard extends Base
         }
     }
 
-    /** task_id and project_id from the query; for the JSON_IDS actions, from the JSON body when the query has none. */
+    /** task_id and project_id where core reads them: the query, except task_id for the JSON_TASK_ID actions. */
     private function ids(string $plugin, string $controller, string $action): array
     {
         $ids = [
             'task_id' => $this->request->getIntegerParam('task_id') ?: null,
             'project_id' => $this->request->getIntegerParam('project_id') ?: null,
         ];
-        $pair = strtolower($controller.'::'.$action);
-        $wildcard = strtolower($controller).'::*';
-        if ($plugin !== '' || ! array_intersect([$pair, $wildcard], self::JSON_IDS) || ! in_array(null, $ids, true)) {
-            return $ids;
-        }
-        $json = $this->request->getJson();
-        foreach ($ids as $key => $value) {
-            if ($value === null && isset($json[$key])) {
-                $id = filter_var($json[$key], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-                $ids[$key] = $id === false ? null : $id;
-            }
+        if ($plugin === '' && in_array(strtolower($controller.'::'.$action), self::JSON_TASK_ID, true)) {
+            $value = $this->request->getJson()['task_id'] ?? null;
+            $id = is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : 0;
+            $ids['task_id'] = $id > 0 ? $id : null;
         }
         return $ids;
     }

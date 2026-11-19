@@ -261,7 +261,8 @@ class SwitchGuardTest extends Base
                 $this->assertSame($this->ana, (int) $row['subject_user_id'], $pair);
                 $this->assertSame([
                     'method' => 'GET', 'controller' => $controller, 'action' => $action,
-                    'task_id' => $this->task, 'project_id' => $this->project,
+                    // The board move's task_id comes from its JSON body only, never the query.
+                    'task_id' => $pair === 'BoardAjaxController::save' ? null : $this->task, 'project_id' => $this->project,
                 ], json_decode($row['details'], true), $pair);
             }
             $counts[$level]++;
@@ -311,14 +312,39 @@ class SwitchGuardTest extends Base
         $this->assertSame($this->project, $details['project_id']);
     }
 
-    public function testQueryIdsWinOverTheJsonBody(): void
+    /** Core moves the task named in the JSON body: a task_id in the query must not change what is audited. */
+    public function testBoardMoveIgnoresAQueryTaskId(): void
     {
-        $this->route('GET', ['controller' => 'TaskReorderController', 'action' => 'reorderColumn', 'project_id' => (string) $this->project], [], [],
-            json_encode(['task_id' => '7', 'project_id' => 999]));
+        $this->route('POST', ['controller' => 'BoardAjaxController', 'action' => 'save', 'project_id' => (string) $this->project, 'task_id' => '99'], [], [],
+            json_encode(['task_id' => $this->task, 'project_id' => 999]));
         $this->assertFalse($this->runGuard());
         $details = json_decode($this->auditRows('switch.action')[0]['details'], true);
-        $this->assertSame(7, $details['task_id']);
-        $this->assertSame($this->project, $details['project_id']);
+        $this->assertSame($this->task, $details['task_id']);
+        $this->assertSame($this->project, $details['project_id'], 'project_id comes from the query, as in core');
+    }
+
+    public function testBoardMoveRecordsOnlyRealIds(): void
+    {
+        foreach ([true, 1.5, '1e3', '-4', [5], null] as $i => $bad) {
+            $this->route('POST', ['controller' => 'BoardAjaxController', 'action' => 'save', 'project_id' => (string) $this->project, 'task_id' => '99'], [], [],
+                json_encode(['task_id' => $bad]));
+            $this->assertFalse($this->runGuard());
+            $details = json_decode($this->auditRows('switch.action')[$i]['details'], true);
+            $this->assertNull($details['task_id'], json_encode($bad));
+        }
+        $this->route('POST', ['controller' => 'BoardAjaxController', 'action' => 'save', 'project_id' => (string) $this->project], [], [],
+            json_encode(['task_id' => (string) $this->task]));
+        $this->assertFalse($this->runGuard());
+        $this->assertSame($this->task, json_decode($this->auditRows('switch.action')[6]['details'], true)['task_id']);
+    }
+
+    /** Core's reorderColumn reads no task id: whatever a JSON body carries is not recorded. */
+    public function testColumnReorderRecordsNoTaskFromTheBody(): void
+    {
+        $this->route('GET', ['controller' => 'TaskReorderController', 'action' => 'reorderColumn', 'project_id' => (string) $this->project], [], [],
+            json_encode(['task_id' => 7]));
+        $this->assertFalse($this->runGuard());
+        $this->assertNull(json_decode($this->auditRows('switch.action')[0]['details'], true)['task_id']);
     }
 
     public function testJsonBodyIsReadOnlyForTheBoardActions(): void
