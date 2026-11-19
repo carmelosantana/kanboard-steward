@@ -2,6 +2,14 @@
     <h2><?= t('Branding') ?></h2>
 </div>
 
+<?php if (! empty($shadcn_import)): ?>
+<form method="post" action="<?= $this->url->href('StewardBrandingController', 'import', ['plugin' => 'Steward']) ?>" class="steward-import">
+    <?= $this->form->csrf() ?>
+    <p class="form-help"><?= t('ShadcnTheme has a logo or favicon that Steward can use. Importing converts it to PNG; SVG files cannot be imported.') ?></p>
+    <button type="submit" class="btn"><?= t('Import from ShadcnTheme') ?></button>
+</form>
+<?php endif ?>
+
 <form method="post" enctype="multipart/form-data" action="<?= $this->url->href('StewardBrandingController', 'save', ['plugin' => 'Steward']) ?>" autocomplete="off">
     <?= $this->form->csrf() ?>
 

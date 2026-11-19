@@ -7,6 +7,7 @@ use Kanboard\Plugin\Steward\Model\Branding;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\ImageProcessor;
 use RuntimeException;
+use Throwable;
 
 /** Settings → Steward → Branding (admin), and the public image endpoint (spec §3). */
 class StewardBrandingController extends BaseController
@@ -27,7 +28,93 @@ class StewardBrandingController extends BaseController
             'logo_url' => $branding->imageUrl('logo'),
             'favicon_url' => $branding->imageUrl('favicon180'),
             'max_length' => Branding::SITE_NAME_MAX,
+            'shadcn_import' => $branding->shadcnImports() !== [],
         ]));
+    }
+
+    /**
+     * Import from ShadcnTheme (spec §5.6): its logo/favicon go through the same pipeline into Steward's empty
+     * slots. All or nothing: an SVG or any image the pipeline refuses writes nothing and flashes why.
+     */
+    public function import(): void
+    {
+        if (! $this->featureOn()) {
+            return;
+        }
+        $this->assertAdmin();
+        if (! $this->request->isPost()) {
+            throw new AccessForbiddenException();
+        }
+        $this->checkCSRFForm();
+
+        $branding = $this->branding();
+        $sources = $branding->shadcnImports();
+        if ($sources === []) {
+            $this->flash->failure(t('Nothing to import from ShadcnTheme'));
+            $this->redirectToShow();
+            return;
+        }
+
+        $results = [];
+        foreach ($sources as $slot => $path) {
+            $result = $this->processShadcnImage($slot, $path);
+            if (! $result['ok']) {
+                $this->flash->failure($result['error']);
+                $this->redirectToShow();
+                return;
+            }
+            $results[$slot] = $result;
+        }
+
+        $actorId = (int) $this->userSession->getId();
+        try {
+            foreach ($results as $slot => $result) {
+                $branding->save($slot, $result['blobs'], $result['hash']);
+                $this->container['stewardAudit']->logInternal('branding.changed', $actorId, null, ['slot' => $slot, 'action' => 'import']);
+            }
+        } catch (RuntimeException $e) {
+            $this->flash->failure(t('Unable to save your settings.'));
+            $this->redirectToShow();
+            return;
+        }
+
+        $this->flash->success(t('Imported from ShadcnTheme.'));
+        $this->redirectToShow();
+    }
+
+    /** @return array{ok:bool,error?:string,blobs?:array<string,string>,hash?:string} error already translated */
+    private function processShadcnImage(string $slot, string $path): array
+    {
+        try {
+            $blob = $this->objectStorage->get($path);
+        } catch (Throwable $e) {
+            $this->logger->error('Steward branding: ShadcnTheme '.$slot.' '.$path.' unreadable: '.$e->getMessage());
+            $blob = null;
+        }
+        if (! is_string($blob) || $blob === '') {
+            return ['ok' => false, 'error' => $slot === 'logo'
+                ? t('Could not read your ShadcnTheme logo')
+                : t('Could not read your ShadcnTheme favicon')];
+        }
+
+        // By content, not by the stored file name: GD cannot read SVG, so the admin uploads a PNG instead.
+        $rasterMagic = preg_match('/^(\x89PNG|\xFF\xD8|GIF8|RIFF)/', $blob) === 1;
+        if (! $rasterMagic && preg_match('/<svg[\s>]/i', substr($blob, 0, 4096)) === 1) {
+            return ['ok' => false, 'error' => $slot === 'logo'
+                ? t('Your ShadcnTheme logo is an SVG; upload a PNG instead')
+                : t('Your ShadcnTheme favicon is an SVG; upload a PNG instead')];
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'steward-import-');
+        if ($tmp === false || file_put_contents($tmp, $blob) === false) {
+            return ['ok' => false, 'error' => t(ImageProcessor::ERROR_UNREADABLE)];
+        }
+        try {
+            $result = (new ImageProcessor())->process($tmp, strlen($blob), $this->branding()->targets($slot));
+        } finally {
+            unlink($tmp);
+        }
+        return $result['ok'] ? $result : ['ok' => false, 'error' => t($result['error'])];
     }
 
     /**

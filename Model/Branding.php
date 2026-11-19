@@ -38,6 +38,10 @@ class Branding extends Base
         'favicon180' => ['steward_favicon180_path', 'steward_favicon_hash'],
     ];
 
+    /** ShadcnTheme 1.1's config keys per Steward slot (spec §5.6), and the ObjectStorage prefix it writes under. */
+    public const SHADCN_KEYS = ['logo' => 'shadcn_logo_path', 'favicon' => 'shadcn_favicon_path'];
+    public const SHADCN_PREFIX = 'shadcn-theme/';
+
     /** Trimmed site name, or null when it is longer than SITE_NAME_MAX characters. */
     public static function cleanSiteName(string $name): ?string
     {
@@ -142,6 +146,26 @@ class Branding extends Base
             return '';
         }
         return $this->helper->url->href('StewardBrandingController', 'image', ['plugin' => 'Steward', 'slot' => $image, 'h' => $hash]);
+    }
+
+    /**
+     * Slots ShadcnTheme can fill: its key names an object under its own prefix and Steward's slot is empty.
+     *
+     * @return array<string,string> slot => ShadcnTheme object key
+     */
+    public function shadcnImports(): array
+    {
+        $imports = [];
+        foreach (self::SHADCN_KEYS as $slot => $key) {
+            $path = (string) $this->configModel->getOption($key, '');
+            if ($path === '' || ! str_starts_with($path, self::SHADCN_PREFIX) || str_contains($path, '..')) {
+                continue;
+            }
+            if ($this->paths($slot) === [] && $this->configModel->getOption(self::SLOTS[$slot]['hash'], '') === '') {
+                $imports[$slot] = $path;
+            }
+        }
+        return $imports;
     }
 
     /** @return array<string,array{0:int,1:int,2:string}> */

@@ -2,6 +2,7 @@
 namespace Kanboard\Plugin\Steward;
 
 use Kanboard\Core\Plugin\Base;
+use Kanboard\Plugin\Steward\Helper\StewardBrandingHelper;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\Branding;
@@ -25,6 +26,8 @@ class Plugin extends Base
         $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
         $this->container['stewardSwitching'] = fn ($c) => new SwitchService($c);
         $this->container['stewardBranding'] = fn ($c) => new Branding($c);
+        // Always registered so other plugins can call it; it answers '' while branding is off.
+        $this->helper->register('stewardBranding', StewardBrandingHelper::class);
 
         // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
         $acl = $this->container['stewardAcl'];
@@ -35,6 +38,10 @@ class Plugin extends Base
         if ($this->container['stewardFeatures']->isEnabled('branding')) {
             $this->route->addRoute('steward/branding', 'StewardBrandingController', 'show', 'Steward');
             $this->route->addRoute('steward/branding/save', 'StewardBrandingController', 'save', 'Steward');
+            $this->route->addRoute('steward/branding/import', 'StewardBrandingController', 'import', 'Steward');
+            // On app.bootstrap, after every plugin's initialize(): plugins load in directory order, so this is
+            // how Steward's header/title override wins over ShadcnTheme 1.1's whichever loads last.
+            $this->dispatcher->addListener('app.bootstrap', [$this, 'applyBranding'], self::LATE_BOOTSTRAP);
         }
         // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
         // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so
@@ -68,6 +75,25 @@ class Plugin extends Base
         $this->hook->on('template:header:dropdown', [
             'template' => 'Steward:header/switch_back',
             'callable' => fn () => ['steward_switched' => $switching()->isSwitched()],
+        ]);
+    }
+
+    /**
+     * Spec §3 Applying, run on app.bootstrap. Favicon links render after core's and after other plugins' (browsers
+     * prefer the later ones). The header/title override replaces ShadcnTheme 1.1's and falls back to its logo
+     * (spec §5.6).
+     */
+    public function applyBranding(): void
+    {
+        $this->template->setTemplateOverride('layout', 'Steward:layout');
+        $this->template->setTemplateOverride('header/title', 'Steward:header/title');
+        $this->hook->on('template:layout:head', ['template' => 'Steward:layout/favicon']);
+        $this->hook->on('template:auth:login-form:before', [
+            'template' => 'Steward:auth/logo',
+            'callable' => fn () => [
+                'steward_logo_url' => $this->container['stewardBranding']->imageUrl('logo'),
+                'steward_site_name' => $this->container['stewardBranding']->siteName(),
+            ],
         ]);
     }
 

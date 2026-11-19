@@ -51,3 +51,30 @@
 
 /* Branding settings page */
 .steward-branding-preview { max-width: 100%; height: auto; max-height: 128px; }
+
+/* Branding (spec §3): the logo sits where core's "KB" mark does, and above the login form. */
+.steward-header-logo {
+    display: inline-block;
+    max-height: 32px;
+    max-width: 160px;
+    vertical-align: middle;
+}
+
+.steward-login-brand {
+    margin-bottom: 1em;
+    text-align: center;
+}
+
+.steward-login-logo {
+    max-width: 100%;
+    max-height: 128px;
+}
+
+.steward-login-name {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.steward-import {
+    margin-bottom: 1.5em;
+}
