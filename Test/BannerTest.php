@@ -192,6 +192,33 @@ class BannerTest extends Base
         }
     }
 
+    /** Overlapping markers give properly nested tags or literal text, never `<strong><em>a</strong></em>`. */
+    public function testOverlappingMarkersNeverMisNest(): void
+    {
+        $this->assertSame('<strong>*a</strong>*', $this->md('***a***'));
+        $this->assertSame('<strong>a *b</strong> c*', $this->md('**a *b** c*'));
+        $this->assertSame('<strong>a <em>b</em></strong>', $this->md('**a _b_**'));
+        $this->assertSame('<em>x <strong>y</strong> z</em>', $this->md('*x **y** z*'));
+        foreach (['***a***', '**a *b** c*', '*a **b* c**', '__a _b__ c_', '_a __b_ c__', '**a __b** c__', '*a _b* c_',
+            '***a** b*', '***a* b**', '**a [*b**](https://x.example) c*', '*`a*` b*', '_**a_**', '**_a**_'] as $in) {
+            $this->assertProperlyNested($this->md($in), $in);
+        }
+    }
+
+    private function assertProperlyNested(string $html, string $in): void
+    {
+        preg_match_all('#<(/?)(strong|em|code|a)\b[^>]*>#', $html, $tags, PREG_SET_ORDER);
+        $open = [];
+        foreach ($tags as [, $close, $name]) {
+            if ($close === '') {
+                $open[] = $name;
+                continue;
+            }
+            $this->assertSame($name, array_pop($open), $in.' => '.$html);
+        }
+        $this->assertSame([], $open, $in.' => '.$html);
+    }
+
     public function testHtmlImagesBlocksAndMermaidRenderAsText(): void
     {
         $cases = [
@@ -364,6 +391,20 @@ class BannerTest extends Base
         $this->assertCount(1, $this->auditRows());
     }
 
+    public function testMessageThatIsNotUtf8IsRejected(): void
+    {
+        $this->save(['steward_banner_message' => 'Fine']);
+        session_set('flash', []);
+        foreach (["Bad \xff byte", "\xc3\x28", "Over long \xc0\xaf"] as $bad) {
+            $this->save(['steward_banner_message' => $bad, 'steward_banner_level' => 'warning']);
+            $this->assertSame('Fine', $this->setting('steward_banner_message'), bin2hex($bad));
+            $this->assertSame('info', $this->setting('steward_banner_level'), 'nothing written');
+            $this->assertArrayHasKey('failure', $this->flash());
+            session_set('flash', []);
+        }
+        $this->assertCount(1, $this->auditRows());
+    }
+
     public function testBadTimesAreRejected(): void
     {
         foreach ([
@@ -467,6 +508,24 @@ class BannerTest extends Base
         $this->set(['steward_banner_message' => 'Second']);
         $this->loginAs($this->ana);
         $this->assertStringContainsString('Second', $this->hook('template:layout:top'), 'edited message shows again');
+    }
+
+    /** Dismissing is for dismissible banners: once the admin makes it non-dismissible, everyone sees it again. */
+    public function testNonDismissibleBannerShowsEvenAfterAnEarlierDismissal(): void
+    {
+        $this->set(['steward_banner_message' => 'Outage', 'steward_banner_dismissible' => '1']);
+        $this->loginAs($this->ana);
+        $version = $this->banner()->current()['version'];
+        $this->dismiss(['version' => $version]);
+        $this->assertSame($version, $this->dismissed($this->ana));
+        $this->assertStringNotContainsString('Outage', $this->hook('template:layout:top'));
+
+        $this->set(['steward_banner_message' => 'Outage', 'steward_banner_dismissible' => '0']);
+        $this->assertSame($version, $this->banner()->current()['version'], 'same message, same version');
+        $html = $this->hook('template:layout:top');
+        $this->assertStringContainsString('Outage', $html);
+        $this->assertStringNotContainsString('<form', $html);
+        $this->assertNotNull($this->banner()->forViewer(Banner::APP));
     }
 
     public function testDismissRedirectsOnlyToALocalPath(): void

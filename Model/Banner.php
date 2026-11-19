@@ -79,7 +79,8 @@ class Banner extends Base
 
     /**
      * What $place shows the signed-in viewer (or anonymous), or null. 'dismissible' is true only where a dismiss
-     * button may render: the signed-in layout. A user who dismissed this version sees nothing anywhere.
+     * button may render: the signed-in layout. A user who dismissed this version sees nothing anywhere, as long as
+     * the banner is still dismissible.
      *
      * @return array{version:string,level:string,html:string,dismissible:bool,login:bool,public:bool}|null
      */
@@ -90,7 +91,8 @@ class Banner extends Base
             return null;
         }
         $userId = (int) $this->userSession->getId();
-        if ($userId > 0 && $this->isDismissed($userId, $banner['version'])) {
+        // A dismissal counts only while the banner is dismissible: made non-dismissible, it shows to everyone.
+        if ($banner['dismissible'] && $userId > 0 && $this->isDismissed($userId, $banner['version'])) {
             return null;
         }
         $banner['dismissible'] = $banner['dismissible'] && $place === self::APP && $userId > 0;

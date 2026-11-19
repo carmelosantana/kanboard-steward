@@ -35,10 +35,10 @@ final class InlineMarkdown
                 return $m[0];
             }
             return $keep('<a href="'.htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" rel="noopener noreferrer">'
-                .self::emphasis($m[1]).'</a>');
+                .self::emphasis($m[1], $keep).'</a>');
         }, $html);
 
-        $html = self::emphasis($html);
+        $html = self::emphasis($html, $keep);
 
         // A fragment can hold others (`code` inside link text), so restore until none is left. Each pass removes
         // a nesting level and fragments only point at earlier ones, so count($fragments) passes always suffice.
@@ -68,14 +68,24 @@ final class InlineMarkdown
         return is_string($host) && $host !== '';
     }
 
-    private static function emphasis(string $html): string
+    /**
+     * Strong before em. Each match becomes a finished fragment (its inside converted first), so a later, overlapping
+     * marker can only wrap whole fragments or stay literal: tags always nest (`***a***` gives `<strong>*a</strong>*`).
+     *
+     * @param callable(string):string $keep
+     */
+    private static function emphasis(string $html, callable $keep): string
     {
         $patterns = [
-            '/\*\*(?=\S)(.+?)(?<=\S)\*\*/u' => '<strong>$1</strong>',
-            '/(?<![\p{L}\p{N}_])__(?=\S)(.+?)(?<=\S)__(?![\p{L}\p{N}_])/u' => '<strong>$1</strong>',
-            '/\*(?=[^\s*])(.+?)(?<=[^\s*])\*/u' => '<em>$1</em>',
-            '/(?<![\p{L}\p{N}_])_(?=[^\s_])(.+?)(?<=[^\s_])_(?![\p{L}\p{N}_])/u' => '<em>$1</em>',
+            '/\*\*(?=\S)(.+?)(?<=\S)\*\*/u' => 'strong',
+            '/(?<![\p{L}\p{N}_])__(?=\S)(.+?)(?<=\S)__(?![\p{L}\p{N}_])/u' => 'strong',
+            '/\*(?=[^\s*])(.+?)(?<=[^\s*])\*/u' => 'em',
+            '/(?<![\p{L}\p{N}_])_(?=[^\s_])(.+?)(?<=[^\s_])_(?![\p{L}\p{N}_])/u' => 'em',
         ];
-        return (string) preg_replace(array_keys($patterns), array_values($patterns), $html);
+        foreach ($patterns as $pattern => $tag) {
+            $html = (string) preg_replace_callback($pattern,
+                fn ($m) => $keep('<'.$tag.'>'.self::emphasis($m[1], $keep).'</'.$tag.'>'), $html);
+        }
+        return $html;
     }
 }

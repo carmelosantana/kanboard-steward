@@ -106,6 +106,9 @@ final class SettingsSchema
     public static function filterBanner(array $values, callable $toTimestamp): array
     {
         $message = is_string($values['steward_banner_message'] ?? null) ? $values['steward_banner_message'] : '';
+        if (! mb_check_encoding($message, 'UTF-8')) {
+            return ['values' => [], 'error' => t('The message is not valid UTF-8 text')];
+        }
         if (mb_strlen($message, 'UTF-8') > self::BANNER_MESSAGE_MAX) {
             return ['values' => [], 'error' => t('The message is too long (max %d characters)', self::BANNER_MESSAGE_MAX)];
         }
