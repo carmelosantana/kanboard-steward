@@ -2,6 +2,7 @@
 namespace Kanboard\Plugin\Steward\Model;
 
 use Kanboard\Core\Base;
+use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Model\RememberMeSessionModel;
 use Throwable;
 
@@ -105,12 +106,17 @@ class SwitchService extends Base
      */
     private function revokeRememberMe(): bool
     {
-        $credentials = $this->rememberMeCookie->read();
-        if ($credentials === false) {
-            return true;
-        }
-
         try {
+            // Core's decode() warns on a value without `token|sequence`; such a cookie can't be revoked: fail closed.
+            $raw = $this->request->getCookie(RememberMeCookie::COOKIE_NAME);
+            if (! empty($raw) && ! (is_string($raw) && str_contains($raw, '|'))) {
+                $this->logger->error('Steward: malformed remember-me cookie; switch refused.');
+                return false;
+            }
+            $credentials = $this->rememberMeCookie->read();
+            if ($credentials === false) {
+                return true;
+            }
             $token = (string) $credentials['token'];
             $rows = fn () => $this->db->table(RememberMeSessionModel::TABLE)->eq('token', $token);
             foreach ($rows()->findAllByColumn('id') ?: [] as $id) {

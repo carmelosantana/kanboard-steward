@@ -23,6 +23,8 @@ class SwitchPolicy extends Base
             ($actor['role'] ?? null) !== Role::APP_ADMIN => 'not_admin',
             $alreadySwitched => 'nested',
             ! empty($actor['twofactor_activated']) && ! $actorPostAuthValidated => '2fa_pending',
+            // The authorisation boundary: every reason above is decided without the target. SwitchService::start()
+            // calls once with a null target and looks the user up only when this is the answer; keep it here.
             $target === null => 'not_found',
             empty($target['is_active']) => 'inactive',
             (int) ($target['id'] ?? 0) === (int) ($actor['id'] ?? 0) => 'self',

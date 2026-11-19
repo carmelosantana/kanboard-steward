@@ -8,6 +8,9 @@ use Kanboard\Plugin\Steward\Model\SwitchPolicy;
 /** Starts a user switch (spec §2). App admins only (AclCheck); behind the `switching` feature (FeatureGate). */
 class StewardSwitchController extends BaseController
 {
+    /** Refusals reached only after the actor passed authorisation and the target was found. */
+    private const TARGET_PHASE_REASONS = ['inactive', 'self', 'target_admin', 'audit_failed', 'rememberme_failed', 'session_failed'];
+
     /** POST with CSRF; `user_id` comes from the form. */
     public function start(): void
     {
@@ -26,9 +29,10 @@ class StewardSwitchController extends BaseController
             return;
         }
 
-        // One message for every reason; the real one is in the audit log only.
+        // One message for every reason; the real one is in the audit log only. Back to the profile only when the
+        // refusal came after authorisation, so the redirect never tells an unauthorised actor whether a user exists.
         $this->flash->failure(t(SwitchPolicy::UNIFORM_MESSAGE));
-        if ($targetId > 0 && $this->userModel->getById($targetId)) {
+        if (in_array($reason, self::TARGET_PHASE_REASONS, true)) {
             $this->response->redirect($this->helper->url->to('UserViewController', 'show', ['user_id' => $targetId]));
         } else {
             $this->response->redirect($this->helper->url->to('UserListController', 'show'));

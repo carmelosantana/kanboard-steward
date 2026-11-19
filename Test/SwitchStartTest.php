@@ -365,6 +365,77 @@ class SwitchStartTest extends Base
         $this->assertSame('target_admin', json_decode($refused[0]['details'], true)['reason']);
     }
 
+    /** @return array<string,array{0:string}> */
+    public static function authorisationReasons(): array
+    {
+        return ['disabled' => ['disabled'], 'acl_conflict' => ['acl_conflict'], 'not_admin' => ['not_admin'],
+            'nested' => ['nested'], '2fa_pending' => ['2fa_pending']];
+    }
+
+    /**
+     * Refused before the target lookup: the redirect must not tell whether the target exists.
+     *
+     * @dataProvider authorisationReasons
+     */
+    public function testAuthorisationRefusalsGoToTheUserListEvenForAnExistingTarget(string $reason): void
+    {
+        match ($reason) {
+            'disabled' => $this->container['configModel']->save(['steward_switching' => '0']),
+            'acl_conflict' => $this->container[AclCheck::FLAG] = true,
+            'not_admin' => $this->container['db']->table(UserModel::TABLE)->eq('id', self::ADMIN)->update(['role' => Role::APP_USER]),
+            'nested' => $_SESSION['steward_switch'] = ['switch_id' => str_repeat('a', 64), 'admin_id' => 1, 'admin_username' => 'admin', 'started_at' => 1, 'last_seen' => 1],
+            '2fa_pending' => $this->container['db']->table(UserModel::TABLE)->eq('id', self::ADMIN)->update(['twofactor_activated' => 1, 'twofactor_secret' => 'X']),
+        };
+        $this->container['memoryCache']->flush();
+
+        $existing = $this->post(['csrf_token' => $this->csrf(), 'user_id' => (string) $this->ana]);
+        $missing = $this->post(['csrf_token' => $this->csrf(), 'user_id' => '999']);
+
+        $list = $this->container['helper']->url->to('UserListController', 'show');
+        $this->assertSame($list, $existing);
+        $this->assertSame($list, $missing);
+        $reasons = array_map(fn ($r) => json_decode($r['details'], true)['reason'], $this->auditRows('switch.refused'));
+        $this->assertSame([$reason, $reason], $reasons);
+    }
+
+    public function testInactiveTargetGoesBackToTheProfile(): void
+    {
+        $this->container['userModel']->disable($this->ana);
+
+        $url = $this->post(['csrf_token' => $this->csrf(), 'user_id' => (string) $this->ana]);
+
+        $this->assertSame($this->container['helper']->url->to('UserViewController', 'show', ['user_id' => $this->ana]), $url);
+        $this->assertSame('inactive', json_decode($this->auditRows('switch.refused')[0]['details'], true)['reason']);
+    }
+
+    /** The target's own 2FA is not asked for: the admin is viewing as them, not signing in as them. */
+    public function testTargetWithTwoFactorIsNotPrompted(): void
+    {
+        $this->container['db']->table(UserModel::TABLE)->eq('id', $this->ana)->update(['twofactor_activated' => 1]);
+
+        $this->assertNull($this->service()->start($this->ana));
+
+        $this->assertSame($this->ana, $this->container['userSession']->getId());
+        $this->assertTrue($this->container['userSession']->hasPostAuthentication());
+        $this->assertTrue($this->container['userSession']->isPostAuthenticationValidated());
+    }
+
+    /** A remember-me cookie without its `token|sequence` shape can't be revoked: fail closed, no PHP warning. */
+    public function testMalformedRememberMeCookieRefuses(): void
+    {
+        $this->cookies = [RememberMeCookie::COOKIE_NAME => 'no-separator-here'];
+        $this->request('POST', []);
+        $this->cookie->expects($this->never())->method('remove');
+        $before = $_SESSION;
+
+        $this->assertSame('rememberme_failed', $this->service()->start($this->ana));
+
+        $this->assertSame($before, $_SESSION);
+        $this->assertSame('rememberme_failed', json_decode($this->auditRows('switch.refused')[0]['details'], true)['reason']);
+        $errors = array_filter($this->log->lines, fn ($l) => $l[0] === 'error' && str_contains($l[1], 'remember-me'));
+        $this->assertNotEmpty($errors);
+    }
+
     public function testUnknownTargetRedirectsToTheUserList(): void
     {
         $url = $this->post(['csrf_token' => $this->csrf(), 'user_id' => '999']);
