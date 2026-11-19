@@ -57,6 +57,40 @@ class RedactorTest extends TestCase
         }
     }
 
+    /** @return array<string,array{0:int,1:string,2:string}> size, value fill, quote */
+    public static function longQuotedValues(): array
+    {
+        $rows = [];
+        foreach (['10 KB' => 10 * 1024, '100 KB' => 100 * 1024, '1 MB' => 1024 * 1024] as $label => $size) {
+            $rows[$label.' double'] = [$size, 'x', '"'];
+            $rows[$label.' double escaped'] = [$size, 'x\\"', '"'];
+            $rows[$label.' single'] = [$size, 'x', "'"];
+            $rows[$label.' single escaped'] = [$size, "x\\'", "'"];
+        }
+        return $rows;
+    }
+
+    /**
+     * A long quoted value must not exhaust PCRE (which would turn the whole message into '').
+     *
+     * @dataProvider longQuotedValues
+     */
+    public function testLongQuotedValuesAreRedactedWithoutAPcreError(int $size, string $fill, string $quote): void
+    {
+        $secret = 'SECRETSTART'.str_repeat($fill, intdiv($size, strlen($fill))).'SECRETEND';
+        $message = 'before {'.$quote.'password'.$quote.':'.$quote.$secret.$quote.',"note":"after"} tail';
+
+        $out = (new Redactor())->redact($message);
+
+        $this->assertSame(PREG_NO_ERROR, preg_last_error(), preg_last_error_msg());
+        $this->assertStringContainsString($quote.'password=[redacted]', $out);
+        $this->assertStringNotContainsString('SECRETSTART', $out);
+        $this->assertStringNotContainsString('SECRETEND', $out);
+        $this->assertStringStartsWith('before {', $out);
+        $this->assertStringEndsWith(',"note":"after"} tail', $out);
+        $this->assertLessThan(100, strlen($out));
+    }
+
     public function testConfiguredValuesAreReplacedLiterallyWhereverTheyAppear(): void
     {
         $out = (new Redactor(['mailops', 'Tr1cky pass', 'ab', '']))->redact('535 mailops not allowed (Tr1cky pass) ab');

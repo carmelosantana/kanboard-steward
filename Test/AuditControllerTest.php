@@ -17,7 +17,6 @@ use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Plugin;
 
-/** Renders only the page body: the full config layout needs a real logged-in session. */
 /** Swallows log lines so expected errors never reach stderr. */
 class StewardAuditPageLogSink extends \Kanboard\Core\Log\Base
 {

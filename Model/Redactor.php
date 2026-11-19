@@ -25,10 +25,11 @@ class Redactor
         // `_`/`-` or a camelCase hump (access_token, x-api-key, authToken), never mid-word (bypass, superuser).
         // Prefix segments are bounded and each ends in a fixed separator or before an upper-case letter, so
         // backtracking stays small. The value is bare or quoted (a backslash escapes the next character, so `\"` does
-        // not end it); an unterminated quote runs to end of line.
+        // not end it); an unterminated quote runs to end of line. Possessive quantifiers keep a long quoted value
+        // from exhausting PCRE's JIT stack (which would blank the whole message).
         '/(?<![A-Za-z0-9_-])((?:[A-Za-z0-9]{1,32}[_-]|[A-Z]?[a-z0-9]{1,32}(?=[A-Z])){0,4}'
             .'(?i:password|passwd|pass|pwd|secret|token|api[_-]?key|credentials?|username|user))'
-            .'["\']?\s*[:=]\s*("(?:[^"\\\\\r\n]|\\\\.)*"?|\'(?:[^\'\\\\\r\n]|\\\\.)*\'?|\S+)/' => '$1='.self::MASK,
+            .'["\']?\s*[:=]\s*("(?:[^"\\\\\r\n]++|\\\\.)*+"?|\'(?:[^\'\\\\\r\n]++|\\\\.)*+\'?|\S+)/' => '$1='.self::MASK,
     ];
 
     /** @var list<string> longest first */

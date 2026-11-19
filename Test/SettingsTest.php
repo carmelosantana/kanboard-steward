@@ -11,7 +11,6 @@ use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\SettingsSchema;
 use Kanboard\Plugin\Steward\Plugin;
 
-/** Renders only the page body: the full config layout needs a real logged-in session. */
 class SettingsTest extends Base
 {
     private string $html = '';
