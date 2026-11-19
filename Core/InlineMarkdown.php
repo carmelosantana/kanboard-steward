@@ -9,7 +9,7 @@ namespace Kanboard\Plugin\Steward\Core;
  */
 final class InlineMarkdown
 {
-    /** Marks a finished fragment while the rest is converted; control characters never survive into the text. */
+    /** Marks a finished fragment while the rest is converted. render() turns every control character in the input into a space first, so the text cannot forge one. */
     private const MARK = "\x01";
 
     public static function render(string $text): string
@@ -40,9 +40,14 @@ final class InlineMarkdown
 
         $html = self::emphasis($html);
 
-        // Fragments never nest a MARK pair, so one pass restores them all.
-        return (string) preg_replace_callback('/'.self::MARK.'(\d+)'.self::MARK.'/',
-            fn ($m) => $fragments[(int) $m[1]], $html);
+        // A fragment can hold others (`code` inside link text), so restore until none is left. Each pass removes
+        // a nesting level and fragments only point at earlier ones, so count($fragments) passes always suffice.
+        for ($pass = 0; $pass <= count($fragments) && str_contains($html, self::MARK); $pass++) {
+            $html = (string) preg_replace_callback('/'.self::MARK.'(\d+)'.self::MARK.'/',
+                fn ($m) => $fragments[(int) $m[1]] ?? '', $html);
+        }
+        // Belt and braces: no control byte ever reaches the page.
+        return str_replace(self::MARK, '', $html);
     }
 
     /** True for an http(s) URL with a host, decided on what a browser would see (Task 16's normalisation). */

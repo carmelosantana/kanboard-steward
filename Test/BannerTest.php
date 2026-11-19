@@ -175,6 +175,23 @@ class BannerTest extends Base
         $this->assertSame('', $this->md(''));
     }
 
+    public function testNestedFragmentsAreRestoredAndControlBytesNeverSurvive(): void
+    {
+        $cases = [
+            '[`v2`](https://x.example)' => '<a href="https://x.example" rel="noopener noreferrer"><code>v2</code></a>',
+            '*see `cfg`*' => '<em>see <code>cfg</code></em>',
+            '[**big** _news_](https://x.example)' => '<a href="https://x.example" rel="noopener noreferrer"><strong>big</strong> <em>news</em></a>',
+            '**[`a`](https://x.example)**' => '<strong><a href="https://x.example" rel="noopener noreferrer"><code>a</code></a></strong>',
+            "a\x010\x01b `c`" => 'a 0 b <code>c</code>',
+            "\x010\x01" => '0',
+        ];
+        foreach ($cases as $in => $out) {
+            $html = $this->md($in);
+            $this->assertSame($out, trim($html), json_encode($in));
+            $this->assertDoesNotMatchRegularExpression('/[\x00-\x1f\x7f]/', $html, json_encode($in));
+        }
+    }
+
     public function testHtmlImagesBlocksAndMermaidRenderAsText(): void
     {
         $cases = [
