@@ -67,8 +67,8 @@ class PublicPage extends Base
     }
 
     /**
-     * Projects that pass every check: the public pages feature, Steward public and listed, core public access with
-     * a token, an identifier (ProjectPageSettings::get() checks them again on read). Sorted by name, case-insensitively.
+     * Projects that pass every check: the public pages feature, Steward public and listed, an active (not archived)
+     * project, core public access with a token, an identifier (ProjectPageSettings::get() checks them again on read). Sorted by name, case-insensitively.
      *
      * @return list<array{project:array,settings:array}>
      */
@@ -83,7 +83,9 @@ class PublicPage extends Base
         $listed = [];
         foreach ($ids as $id) {
             $project = $this->projectModel->getById((int) $id);
-            if (empty($project) || empty($project['is_public']) || (string) ($project['token'] ?? '') === '') {
+            // An archived project leaves the directory; its token page keeps core's behaviour.
+            if (empty($project) || empty($project['is_active']) || empty($project['is_public'])
+                || (string) ($project['token'] ?? '') === '') {
                 continue;
             }
             $settings = $pages->get((int) $id);
@@ -96,10 +98,12 @@ class PublicPage extends Base
         return $listed;
     }
 
-    /** The listed project whose identifier matches, ignoring case; null for none (or, after a database edit, several). */
+    /**
+     * The listed project whose identifier matches, ignoring case but not trimmed (` ALPHA` is no match); null for
+     * none (or, after a database edit, several).
+     */
     public function findListed(string $identifier): ?array
     {
-        $identifier = trim($identifier);
         if ($identifier === '') {
             return null;
         }

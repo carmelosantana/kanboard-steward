@@ -8,6 +8,7 @@ use Kanboard\Core\Http\Request;
 use Kanboard\Core\Http\Route;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Controller\StewardExploreController;
+use Kanboard\Plugin\Steward\Controller\StewardPublicController;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\ProjectPageSettings;
@@ -306,5 +307,36 @@ class ExploreTest extends Base
         $this->assertStringNotContainsString('alpha listed', $this->directory()->body());
         $this->assertTrue($projects->enablePublicAccess($this->ids['alpha listed']));
         $this->assertSame(200, $this->listed('ALPHA')->code());
+    }
+
+    /** An archived project leaves the directory and its listed page; its token page keeps core's behaviour. */
+    public function testArchivedProjectLeavesTheDirectoryButKeepsItsTokenPage(): void
+    {
+        $this->assertTrue($this->container['projectModel']->disable($this->ids['alpha listed']));
+
+        $html = $this->directory()->body();
+        $this->assertStringNotContainsString('alpha listed', $html);
+        $this->assertStringNotContainsString('explore/ALPHA', $html);
+        $this->assertStringContainsString('Mid listed', $html);
+        $this->assertNotFound($this->listed('ALPHA'), 'archived');
+
+        unset($this->container['request']);
+        $this->container['request'] = new Request($this->container, ['REQUEST_METHOD' => 'GET'],
+            ['controller' => 'StewardPublicController', 'action' => 'show', 'plugin' => 'Steward', 'token' => $this->token('alpha listed')], [], [], []);
+        $response = new StewardBrandingResponse($this->container);
+        unset($this->container['response']);
+        $this->container['response'] = $response;
+        (new StewardPublicController($this->container))->show();
+        $this->assertSame(200, $response->code());
+        $this->assertStringContainsString('alpha listed', $response->body());
+    }
+
+    /** Case-insensitive, but the identifier is matched as sent: no trimming. */
+    public function testListedIdentifierIsNotTrimmed(): void
+    {
+        foreach ([' ALPHA', 'ALPHA ', "ALPHA\n", "\talpha"] as $identifier) {
+            $this->assertNotFound($this->listed($identifier), json_encode($identifier));
+        }
+        $this->assertSame(200, $this->listed('aLpHa')->code());
     }
 }
