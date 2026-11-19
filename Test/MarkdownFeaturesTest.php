@@ -66,6 +66,34 @@ class MarkdownFeaturesTest extends Base
         $this->assertStringContainsString('&lt;script&gt;', $html);
     }
 
+    /** A blank line between items makes the list loose: each item's text sits in a <p>, the checkbox with it. */
+    public function testLooseTaskListPutsTheCheckboxInsideTheParagraph(): void
+    {
+        $this->assertSame(
+            "<ul>\n<li class=\"task-list-item\">\n<p><input type=\"checkbox\" disabled> one</p>\n</li>\n"
+            ."<li class=\"task-list-item\">\n<p><input type=\"checkbox\" disabled checked> two</p>\n</li>\n</ul>",
+            $this->parser()->text("- [ ] one\n\n- [x] two")
+        );
+    }
+
+    public function testUnsafeUrlInTaskItemIsNeutralised(): void
+    {
+        $html = $this->parser()->text("- [ ] [click](javascript:alert(1)) ![i](data:text/html,x)");
+
+        $this->assertStringStartsWith('<ul>'."\n".'<li class="task-list-item"><input type="checkbox" disabled> ', $html);
+        $this->assertNoActiveUrl($html);
+        $this->assertStringContainsString('click', $html);
+    }
+
+    public function testUnsafeUrlInHeadingIsNeutralised(): void
+    {
+        $html = $this->parser()->text('## [click](javascript:alert(1)) ![i](data:text/html,x)');
+
+        $this->assertStringStartsWith('<h2 id="md-click-i">', $html);
+        $this->assertNoActiveUrl($html);
+        $this->assertStringContainsString('<a class="md-anchor" href="#md-click-i">#</a>', $html);
+    }
+
     // --- heading ids and anchors -----------------------------------------------------------------------------
 
     public function testHeadingGetsSlugIdAndAnchor(): void
@@ -160,6 +188,15 @@ class MarkdownFeaturesTest extends Base
     }
 
     /** @return list<string> */
+    /** No href/src outside the heading anchor's own fragment link. */
+    private function assertNoActiveUrl(string $html): void
+    {
+        preg_match_all('/\b(?:href|src)="([^"]*)"/', $html, $m);
+        $this->assertSame([], array_values(array_filter($m[1], fn ($u) => ! str_starts_with($u, '#md-'))), $html);
+        $this->assertStringNotContainsStringIgnoringCase('javascript:', $html);
+        $this->assertStringNotContainsString('data:', $html);
+    }
+
     private function ids(string $html): array
     {
         preg_match_all('/<h[1-6] id="([^"]*)"/', $html, $m);

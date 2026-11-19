@@ -134,12 +134,22 @@ class StewardMarkdown extends Markdown
 
     protected function uncheckedTaskItem($lines): string
     {
-        return '<input type="checkbox" disabled> '.$this->li($lines);
+        return $this->withCheckbox('<input type="checkbox" disabled> ', $this->li($lines));
     }
 
     protected function checkedTaskItem($lines): string
     {
-        return '<input type="checkbox" disabled checked> '.$this->li($lines);
+        return $this->withCheckbox('<input type="checkbox" disabled checked> ', $this->li($lines));
+    }
+
+    /** In a loose list the item's text is wrapped in <p>: the checkbox goes inside it, next to the text. */
+    private function withCheckbox(string $checkbox, string $markup): string
+    {
+        if (preg_match('/^\s*<p>/', $markup, $m)) {
+            return $m[0].$checkbox.substr($markup, strlen($m[0]));
+        }
+
+        return $checkbox.$markup;
     }
 
     /** Remember whether the info string is exactly `mermaid` (Parsedown keeps only its first word as the class). */

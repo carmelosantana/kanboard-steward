@@ -4,10 +4,22 @@ require_once __DIR__.'/../Schema/Sqlite.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
+use Kanboard\Core\Log\Logger;
 use Kanboard\Helper\TextHelper;
 use Kanboard\Plugin\Steward\Core\StewardMarkdown;
 use Kanboard\Plugin\Steward\Helper\StewardTextHelper;
 use Kanboard\Plugin\Steward\Plugin;
+
+/** Collects log lines so an expected error never reaches stderr. */
+class StewardMarkdownLogCollector extends \Kanboard\Core\Log\Base
+{
+    public array $lines = [];
+
+    public function log($level, $message, array $context = []): void
+    {
+        $this->lines[] = [$level, (string) $message];
+    }
+}
 
 /** Spec §4 Markdown, safety: escaping, the URL allow-list, public-mode #N links and the heading fix. */
 class MarkdownSafetyTest extends Base
@@ -407,9 +419,16 @@ class MarkdownSafetyTest extends Base
      */
     public function testFrozenTextHelperDoesNotAbortInitialize(): void
     {
+        $log = new StewardMarkdownLogCollector();
+        $logger = new Logger();
+        $logger->setLogger($log);
+        unset($this->container['logger']);
+        $this->container['logger'] = $logger;
         $this->container['helper']->text->e('freeze');
 
         $this->boot(true);
+
+        $this->assertSame([['error', 'Steward: text helper already in use before Steward loaded; safer Markdown is off']], $log->lines);
 
         $this->assertNotInstanceOf(StewardTextHelper::class, $this->container['helper']->text);
         $this->assertNotEmpty($this->container['hook']->getListeners('template:config:sidebar'));

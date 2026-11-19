@@ -3,7 +3,7 @@
 Third-party files shipped unmodified. Each was taken from its npm registry tarball (no
 `npm install`, no scripts run) after the tarball's `sha512` integrity matched the registry value.
 Vetting record: `docs/mermaid-csp-spike.md`. `Test/VendorTest.php` checks every file below against
-its SHA-256 and fails if a `.js`/`.css` file here is not listed.
+its SHA-256 and fails if any other file here (bar this README and the licence texts) is not listed.
 
 | File | Name | Version | Source | Tarball path | SHA-256 | Licence |
 | --- | --- | --- | --- | --- | --- | --- |
