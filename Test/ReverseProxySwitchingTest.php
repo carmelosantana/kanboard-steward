@@ -36,4 +36,24 @@ class ReverseProxySwitchingTest extends Base
         $this->assertFalse($this->container['stewardFeatures']->isEnabled('switching'));
         $this->assertTrue($this->container['stewardFeatures']->isEnabled('banner'));
     }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function testReverseProxyHidesTheSwitchButton(): void
+    {
+        $this->assertTrue(REVERSE_PROXY_AUTH);
+        require_once __DIR__.'/../Schema/Sqlite.php';
+        \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
+        (new Plugin($this->container))->initialize();
+        $this->container['configModel']->save(['steward_switching' => '1']);
+        $this->container['memoryCache']->flush();
+        $ana = $this->container['userModel']->create(['username' => 'ana', 'password' => 'secret-password']);
+        $this->container['userSession']->initialize($this->container['userModel']->getById(1));
+
+        $this->assertNotEmpty($this->container['hook']->getListeners('template:user:sidebar:actions'));
+        $html = $this->container['helper']->hook->render('template:user:sidebar:actions', ['user' => $this->container['userModel']->getById($ana)]);
+        $this->assertStringNotContainsString('StewardSwitchController', $html);
+    }
 }

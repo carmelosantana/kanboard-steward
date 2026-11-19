@@ -20,7 +20,7 @@ class AclCheck extends Base
         'applicationAccessMap' => [
             ['StewardSettingsController', ['show', 'save'], Role::APP_ADMIN],
             ['StewardAuditController', ['index'], Role::APP_ADMIN],
-            ['StewardSwitchController', ['start'], Role::APP_ADMIN],
+            ['StewardSwitchController', ['confirm', 'start'], Role::APP_ADMIN],
             // While switched the browser is the target, so any signed-in user; the action itself refuses unless switched.
             ['StewardSwitchController', ['back'], Role::APP_USER],
         ],

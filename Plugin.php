@@ -45,6 +45,24 @@ class Plugin extends Base
         $this->dispatcher->addSubscriber(new SwitchSubscriber($this->container));
 
         $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
+
+        // Switching UI (spec §2 Flow steps 1 and 4). The button shows only when start() would allow the switch.
+        $switching = fn () => $this->container['stewardSwitching'];
+        $this->hook->on('template:layout:css', ['template' => 'plugins/Steward/Assets/css/steward.css']);
+        $this->hook->on('template:layout:js', ['template' => 'plugins/Steward/Assets/js/steward.js']);
+        $this->hook->on('template:user:sidebar:actions', [
+            'template' => 'Steward:user/switch_button',
+            'callable' => fn (array $user) => ['steward_can_switch' => $switching()->refusalFor($user) === null],
+        ]);
+        // layout/top renders the switch banner first; Task 24's announcement banner goes after it there.
+        $this->hook->on('template:layout:top', [
+            'template' => 'Steward:layout/top',
+            'callable' => fn () => ['steward_switched' => $switching()->isSwitched()],
+        ]);
+        $this->hook->on('template:header:dropdown', [
+            'template' => 'Steward:header/switch_back',
+            'callable' => fn () => ['steward_switched' => $switching()->isSwitched()],
+        ]);
     }
 
     public function getPluginName(): string        { return 'Steward'; }

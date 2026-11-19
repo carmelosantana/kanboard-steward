@@ -22,6 +22,7 @@ class FeatureGate extends Base
         'StewardSettingsController::*' => self::ALWAYS,
         // Read-only on purpose: index is its only action, so no wildcard.
         'StewardAuditController::index' => self::ALWAYS,
+        'StewardSwitchController::confirm' => 'switching',
         'StewardSwitchController::start' => 'switching',
         // Leaving a switch must always work, even right after switching was turned off.
         'StewardSwitchController::back' => self::ALWAYS,

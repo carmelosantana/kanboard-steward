@@ -63,6 +63,18 @@ class SwitchService extends Base
     }
 
     /**
+     * Null when the signed-in user could switch to $target right now, else the SwitchPolicy reason. For the
+     * profile button and the confirmation only: nothing is audited here; start() decides again and records it.
+     */
+    public function refusalFor(?array $target): ?string
+    {
+        $actorId = (int) $this->userSession->getId();
+        $actor = $actorId > 0 ? ($this->userModel->getById($actorId) ?: []) : [];
+        return (new SwitchPolicy($this->container))
+            ->canStart($actor, $target, $this->isSwitched(), $this->userSession->isPostAuthenticationValidated());
+    }
+
+    /**
      * Turns the signed-in admin's session into a session for $targetId (spec §2 step 3).
      * Returns null on success, else the reason code; every refusal is audited as `switch.refused` (or logged
      * when the audit store itself failed) and leaves the session untouched.

@@ -415,6 +415,7 @@ final class SwitchActionTable
     /** Steward's own controllers: leaving works, nothing else does (a nested start is refused by policy too). */
     public const STEWARD = [
         'StewardSwitchController::back' => 'write',
+        'StewardSwitchController::confirm' => 'blocked',
         'StewardSwitchController::start' => 'blocked',
         'StewardSettingsController::show' => 'blocked',
         'StewardSettingsController::save' => 'blocked',

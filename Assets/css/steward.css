@@ -1,0 +1,50 @@
+/* Steward — plain, theme-agnostic: colours come from translucent tints over the page and currentColor. */
+
+.steward-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em 1em;
+    padding: 0.5em 1em;
+    border-bottom: 1px solid;
+    color: inherit;
+    text-align: center;
+}
+
+.steward-banner-info    { background: rgba(59, 130, 246, 0.14); border-color: rgba(59, 130, 246, 0.5); }
+.steward-banner-warning { background: rgba(245, 158, 11, 0.18); border-color: rgba(245, 158, 11, 0.6); }
+.steward-banner-error   { background: rgba(239, 68, 68, 0.16);  border-color: rgba(239, 68, 68, 0.6); }
+.steward-banner-success { background: rgba(34, 197, 94, 0.14);  border-color: rgba(34, 197, 94, 0.5); }
+
+.steward-banner-note {
+    opacity: 0.8;
+    font-size: 0.9em;
+}
+
+.steward-banner-form {
+    display: inline;
+    margin: 0;
+}
+
+/* The header dropdown's Switch back: a POST form whose button looks like the other items. */
+.steward-dropdown-item form {
+    margin: 0;
+}
+
+.steward-link-button {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.steward-link-button:hover,
+.steward-link-button:focus-visible {
+    text-decoration: underline;
+}

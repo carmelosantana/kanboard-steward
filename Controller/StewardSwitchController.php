@@ -6,13 +6,29 @@ use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Plugin\Steward\Model\SwitchPolicy;
 
 /**
- * Starts and ends a user switch (spec §2). `start`: app admins only (AclCheck), behind the `switching` feature
- * (FeatureGate). `back`: any signed-in user, always available, refused unless this session is switched.
+ * Starts and ends a user switch (spec §2). `confirm` and `start`: app admins only (AclCheck), behind the `switching`
+ * feature (FeatureGate). `back`: any signed-in user, always available, refused unless this session is switched.
  */
 class StewardSwitchController extends BaseController
 {
     /** Refusals reached only after the actor passed authorisation and the target was found. */
     private const TARGET_PHASE_REASONS = ['inactive', 'self', 'target_admin', 'audit_failed', 'rememberme_failed', 'session_failed'];
+
+    /**
+     * The confirmation modal behind the profile button (GET). It names the user and posts to start(); an
+     * ineligible or unknown target gets the uniform message only, so the modal tells nothing start() wouldn't.
+     */
+    public function confirm(): void
+    {
+        $raw = $this->request->getStringParam('user_id');
+        $target = is_string($raw) && ctype_digit($raw) && (int) $raw > 0 ? ($this->userModel->getById((int) $raw) ?: null) : null;
+        $allowed = $this->container['stewardSwitching']->refusalFor($target) === null;
+
+        $this->response->html($this->template->render('Steward:switch/confirm', [
+            'user' => $allowed ? $target : null,
+            'refusal' => t(SwitchPolicy::UNIFORM_MESSAGE),
+        ]));
+    }
 
     /** POST with CSRF; `user_id` comes from the form. */
     public function start(): void
