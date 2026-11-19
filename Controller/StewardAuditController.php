@@ -21,12 +21,15 @@ class StewardAuditController extends BaseController
         $form = [
             'event' => $this->param('event'),
             'user_id' => ctype_digit($this->param('user_id')) ? $this->param('user_id') : '',
+            // Exact match on the full id (spec §2: one switch's writes share it).
+            'switch_id' => $this->param('switch_id'),
             'from' => $from !== null ? $from->format('Y-m-d') : '',
             'to' => $to !== null ? $to->format('Y-m-d') : '',
         ];
         $filters = [
             'event' => $form['event'],
             'user_id' => $form['user_id'],
+            'switch_id' => $form['switch_id'],
             'from' => $from !== null ? $from->getTimestamp() : '',
             'to' => $to !== null ? $to->modify('+1 day')->getTimestamp() - 1 : '',
         ];

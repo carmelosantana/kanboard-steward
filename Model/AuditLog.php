@@ -47,7 +47,7 @@ class AuditLog extends Base
         return $this->write($event, $actorId, $subjectId, $details, $switchId);
     }
 
-    /** @param array{event?:string,user_id?:int|string,from?:int|string,to?:int|string} $filters */
+    /** @param array{event?:string,user_id?:int|string,switch_id?:string,from?:int|string,to?:int|string} $filters */
     public function find(array $filters, int $limit, int $offset): array
     {
         try {
@@ -210,6 +210,9 @@ class AuditLog extends Base
         if (isset($filters['user_id']) && $filters['user_id'] !== '') {
             $userId = (int) $filters['user_id'];
             $query->beginOr()->eq('actor_user_id', $userId)->eq('subject_user_id', $userId)->closeOr();
+        }
+        if (isset($filters['switch_id']) && $filters['switch_id'] !== '') {
+            $query->eq('switch_id', (string) $filters['switch_id']);
         }
         if (isset($filters['from']) && $filters['from'] !== '') {
             $query->gte('created_at', (int) $filters['from']);

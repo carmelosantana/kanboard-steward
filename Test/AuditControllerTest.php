@@ -193,6 +193,51 @@ class AuditControllerTest extends Base
         $this->assertStringContainsString('&quot;&gt;&lt;img src=x onerror=1&gt;', $html);
     }
 
+    /** Spec §2: every write of one switch carries its switch_id; the page shows it short and filters by it. */
+    public function testShowsAndFiltersBySwitchId(): void
+    {
+        $one = str_repeat('a1', 32);
+        $two = str_repeat('b2', 32);
+        $t = time() - 100;
+        $this->row('login.success', $t, ['details' => '{"m":"mark-A"}']);
+        $this->row('switch.start', $t + 1, ['switch_id' => $one, 'details' => '{"m":"mark-B"}']);
+        $this->row('switch.write', $t + 2, ['switch_id' => $one, 'details' => '{"m":"mark-C"}']);
+        $this->row('switch.start', $t + 3, ['switch_id' => $two, 'details' => '{"m":"mark-D"}']);
+        $this->row('switch.end', $t + 4, ['switch_id' => $one, 'details' => '{"m":"mark-E"}']);
+        $this->loginAs(1);
+
+        $html = $this->index([]);
+        $this->assertStringContainsString('<th>'.t('Switch').'</th>', $html);
+        $this->assertSame(1, preg_match_all('/<td class="steward-audit-switch"><\/td>/', $html));
+        $link = '<a href="/?controller=StewardAuditController&amp;action=index&amp;plugin=Steward&amp;switch_id='.$one.'" title="'.$one.'">a1a1a1a1</a>';
+        $this->assertSame(3, substr_count($html, $link));
+        $this->assertSame(1, substr_count($html, '>b2b2b2b2</a>'));
+
+        $this->assertSame(['E', 'C', 'B'], $this->markers($this->index(['switch_id' => $one])));
+        $this->assertSame(['D'], $this->markers($this->index(['switch_id' => $two])));
+        // Exact match only: a prefix finds nothing.
+        $this->assertSame([], $this->markers($this->index(['switch_id' => 'a1a1a1a1'])));
+        // Kept in the form and in the pager links.
+        $this->assertStringContainsString('value="'.$one.'"', $this->index(['switch_id' => $one]));
+    }
+
+    public function testSwitchIdIsEscaped(): void
+    {
+        $evil = '"><b>x</b>&<i>';
+        $this->row('plugin.x.write', time(), ['switch_id' => $evil, 'details' => '{"m":"mark-Z"}']);
+        $this->loginAs(1);
+
+        $html = $this->index([]);
+        $this->assertStringNotContainsString('<b>x</b>', $html);
+        $this->assertStringNotContainsString('<i>', $html);
+        $this->assertStringContainsString('title="&quot;&gt;&lt;b&gt;x&lt;/b&gt;&amp;&lt;i&gt;"', $html);
+        $this->assertStringContainsString('>&quot;&gt;&lt;b&gt;x&lt;/</a>', $html);
+
+        $filtered = $this->index(['switch_id' => $evil]);
+        $this->assertSame(['Z'], $this->markers($filtered));
+        $this->assertStringNotContainsString('<b>x</b>', $filtered);
+    }
+
     public function testTruncatedDetailsShownAsEscapedRawText(): void
     {
         $this->row('plugin.x.y', time(), ['details' => '{"note":"<i>cut']);

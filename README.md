@@ -167,8 +167,9 @@ Agents. A plugin that holds secrets can check `$this->container['stewardSwitchin
 
 ### Audit log
 
-Table `steward_audit`; the page (admins only) is newest first with filters for event, user and date range,
-read-only. Events: `switch.start`, `switch.end`, `switch.expired`, `switch.revoked`, `switch.refused`,
+Table `steward_audit`; the page (admins only) is newest first with filters for event, user, date range and
+switch, read-only. Each switch's rows share a switch id; the page shows its first 8 characters, linked to that
+switch's rows. Events: `switch.start`, `switch.end`, `switch.expired`, `switch.revoked`, `switch.refused`,
 `switch.action`, `login.success`, `login.failure` (username as typed, up to 64 characters; failures capped at
 10,000 rows), `branding.changed`, `banner.changed`, `email.test`, `settings.changed` (keys, never secret
 values) and `public.changed`. API logins: failures are recorded (`source=api`), successes are not. Rows older

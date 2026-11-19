@@ -22,6 +22,9 @@ $who = function ($id) use ($users) {
     <?= $this->form->label(t('User'), 'user_id') ?>
     <?= $this->form->select('user_id', ['' => t('All')] + $users, $form) ?>
 
+    <?= $this->form->label(t('Switch'), 'switch_id') ?>
+    <?= $this->form->text('switch_id', $form, [], ['maxlength="64"']) ?>
+
     <?= $this->form->label(t('From'), 'from') ?>
     <?= $this->form->text('from', $form, [], ['placeholder="YYYY-MM-DD"', 'pattern="\d{4}-\d{2}-\d{2}"']) ?>
 
@@ -43,6 +46,7 @@ $who = function ($id) use ($users) {
             <th><?= t('Event') ?></th>
             <th><?= t('Actor') ?></th>
             <th><?= t('Subject') ?></th>
+            <th><?= t('Switch') ?></th>
             <th><?= t('IP address') ?></th>
             <th><?= t('User agent') ?></th>
             <th><?= t('Details') ?></th>
@@ -54,6 +58,7 @@ $who = function ($id) use ($users) {
             <td><?= $this->text->e($row['event']) ?></td>
             <td><?= $this->text->e($who($row['actor_user_id'])) ?></td>
             <td><?= $this->text->e($who($row['subject_user_id'])) ?></td>
+            <td class="steward-audit-switch"><?php if ((string) ($row['switch_id'] ?? '') !== ''): ?><a href="<?= $this->url->href('StewardAuditController', 'index', ['plugin' => 'Steward', 'switch_id' => (string) $row['switch_id']]) ?>" title="<?= $this->text->e((string) $row['switch_id']) ?>"><?= $this->text->e(mb_substr((string) $row['switch_id'], 0, 8)) ?></a><?php endif ?></td>
             <td><?= $this->text->e($row['ip'] ?? '') ?></td>
             <td><?= $this->text->e($row['user_agent'] ?? '') ?></td>
             <td>
