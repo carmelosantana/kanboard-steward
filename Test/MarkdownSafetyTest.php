@@ -21,6 +21,18 @@ class StewardMarkdownLogCollector extends \Kanboard\Core\Log\Base
     }
 }
 
+/** A helper registry whose text swap fails with something other than FrozenServiceException. */
+class StewardThrowingHelper extends \Kanboard\Core\Helper
+{
+    public function register($property, $className)
+    {
+        if ($property === 'text') {
+            throw new \RuntimeException('text swap failed');
+        }
+        return parent::register($property, $className);
+    }
+}
+
 /** Spec §4 Markdown, safety: escaping, the URL allow-list, public-mode #N links and the heading fix. */
 class MarkdownSafetyTest extends Base
 {
@@ -434,6 +446,35 @@ class MarkdownSafetyTest extends Base
 
         $this->assertNotInstanceOf(StewardTextHelper::class, $this->container['helper']->text);
         $this->assertNotEmpty($this->container['hook']->getListeners('template:config:sidebar'));
+    }
+
+    /**
+     * Core's Loader catches any exception from initialize(). Whatever the Markdown step throws, the ACL rules,
+     * the feature gate and the switch guard are already in place.
+     */
+    public function testSecurityListenersSurviveAFailingTextSwap(): void
+    {
+        unset($this->container['helper']);
+        $this->container['helper'] = new StewardThrowingHelper($this->container);
+
+        try {
+            $this->boot(true);
+            $this->fail('the text swap should have thrown');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('text swap failed', $e->getMessage());
+        }
+
+        $classes = [];
+        foreach ($this->container['dispatcher']->getListeners('app.bootstrap') as $listener) {
+            if (is_array($listener) && is_object($listener[0])) {
+                $classes[] = get_class($listener[0]);
+            }
+        }
+        $this->assertContains(\Kanboard\Plugin\Steward\Model\AclCheck::class, $classes);
+        $this->assertContains(\Kanboard\Plugin\Steward\Model\FeatureGate::class, $classes);
+        $this->assertContains(\Kanboard\Plugin\Steward\Model\SwitchGuard::class, $classes);
+        $this->assertTrue($this->container['stewardAcl']->verify());
+        $this->assertNotEmpty($this->container['applicationAccessMap']->getRoles('StewardSettingsController', 'show'));
     }
 
     public function testTaskCreatedEmailUsesTheSafeParser(): void

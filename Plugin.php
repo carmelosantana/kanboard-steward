@@ -30,6 +30,26 @@ class Plugin extends Base
         $this->container['stewardSwitching'] = fn ($c) => new SwitchService($c);
         $this->container['stewardBranding'] = fn ($c) => new Branding($c);
         $this->container['stewardBanner'] = fn ($c) => new Banner($c);
+
+        // Security first: core's Loader catches any exception from initialize(), so nothing that can throw (the
+        // text helper swap below) may come before the ACL rules, the gate, the switch guard and the subscribers.
+        // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
+        $acl = $this->container['stewardAcl'];
+        $acl->register();
+        // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
+        // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the
+        // same event after us, so the check and the gate run again last, in case one of them replaced a rule.
+        $gate = new FeatureGate($this->container);
+        $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap']);
+        $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap']);
+        // Whatever the switches say: with switching off it ends any leftover switch on its next request.
+        $this->dispatcher->addListener('app.bootstrap', [new SwitchGuard($this->container), 'onBootstrap']);
+        $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap'], self::LATE_BOOTSTRAP);
+        $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap'], self::LATE_BOOTSTRAP);
+
+        $this->dispatcher->addSubscriber(new LoginSubscriber($this->container));
+        $this->dispatcher->addSubscriber(new SwitchSubscriber($this->container));
+
         // Always registered so other plugins can call it; it answers '' while branding is off.
         $this->helper->register('stewardBranding', StewardBrandingHelper::class);
         // Spec §4: one swap of the text helper covers templates, notification emails and the editor preview.
@@ -44,9 +64,6 @@ class Plugin extends Base
             $this->registerMarkdownAssets();
         }
 
-        // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
-        $acl = $this->container['stewardAcl'];
-        $acl->register();
         $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
         $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
         $this->route->addRoute('steward/audit', 'StewardAuditController', 'index', 'Steward');
@@ -93,20 +110,6 @@ class Plugin extends Base
         $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
         $this->route->addRoute('explore', 'StewardExploreController', 'index', 'Steward');
         $this->route->addRoute('explore/:identifier', 'StewardExploreController', 'show', 'Steward');
-        // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
-        // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so
-        // the check and the gate run again last, in case one of them replaced a rule.
-        $gate = new FeatureGate($this->container);
-        $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap']);
-        $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap']);
-        // Whatever the switches say: with switching off it ends any leftover switch on its next request.
-        $this->dispatcher->addListener('app.bootstrap', [new SwitchGuard($this->container), 'onBootstrap']);
-        $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap'], self::LATE_BOOTSTRAP);
-        $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap'], self::LATE_BOOTSTRAP);
-
-        $this->dispatcher->addSubscriber(new LoginSubscriber($this->container));
-        $this->dispatcher->addSubscriber(new SwitchSubscriber($this->container));
-
         $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
 
         // Switching UI (spec §2 Flow steps 1 and 4). The button shows only when start() would allow the switch.
