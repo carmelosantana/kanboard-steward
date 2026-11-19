@@ -431,6 +431,8 @@ final class SwitchActionTable
         'StewardPublicController::show' => 'read',
         'StewardExploreController::index' => 'read',
         'StewardExploreController::show' => 'read',
+        // A switched session is never an admin; sending mail as the target is not something a switch is for.
+        'StewardTestEmailController::send' => 'blocked',
     ];
 
     /**

@@ -32,6 +32,9 @@ $labels = [
             <?= $this->form->number('steward_switch_idle_minutes', $values, [], ['min="5"', 'max="480"']) ?>
             <p class="form-help"><?= t('Between 5 and 480.') ?></p>
         <?php endif ?>
+        <?php if ($feature === 'test_email' && $this->app->stewardFeatures->isEnabled('test_email')): ?>
+            <?= $this->render('Steward:config/test_email', ['steward_test_email_to' => $steward_test_email_to ?? '']) ?>
+        <?php endif ?>
     </fieldset>
     <?php endforeach ?>
 

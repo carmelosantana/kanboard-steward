@@ -33,6 +33,7 @@ class AclCheck extends Base
             ['StewardPublicController', ['show'], Role::APP_PUBLIC],
             // Anonymous directory and listed pages (spec §5.4).
             ['StewardExploreController', ['index', 'show'], Role::APP_PUBLIC],
+            ['StewardTestEmailController', ['send'], Role::APP_ADMIN],
         ],
         'projectAccessMap' => [
             ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],

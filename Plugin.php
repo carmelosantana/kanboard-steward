@@ -64,6 +64,18 @@ class Plugin extends Base
             // Spec §5.2: first in the view switcher; core's default view is unchanged.
             $this->hook->on('template:project-header:view-switcher-before-project-overview', ['template' => 'Steward:project_header/home_link']);
         }
+        if ($this->container['stewardFeatures']->isEnabled('test_email')) {
+            $this->route->addRoute('steward/test-email', 'StewardTestEmailController', 'send', 'Steward');
+            // The button sits inside core's email settings form; the form it submits renders at the page bottom.
+            $this->hook->on('template:config:email', [
+                'template' => 'Steward:config/test_email',
+                'callable' => fn () => ['steward_test_email_to' => $this->testEmailRecipient()],
+            ]);
+            $this->hook->on('template:layout:bottom', [
+                'template' => 'Steward:config/test_email_form',
+                'callable' => fn () => ['steward_test_email_redirect' => $this->testEmailRedirect()],
+            ]);
+        }
         // Whatever the switches say: with a feature off, FeatureGate answers these URLs with its 404, the same one an
         // unknown token or identifier gets. Without the routes core would send the paths to the login page instead.
         $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
@@ -102,6 +114,27 @@ class Plugin extends Base
             'template' => 'Steward:header/switch_back',
             'callable' => fn () => ['steward_switched' => $switching()->isSwitched()],
         ]);
+    }
+
+    /** The signed-in user's profile email, the only address a test email goes to (Decision 10). */
+    public function testEmailRecipient(): string
+    {
+        $user = $this->userModel->getById((int) $this->userSession->getId());
+        return trim((string) ($user['email'] ?? ''));
+    }
+
+    /** Which page shows the test-email button: 'email' (core's), '' (Steward settings) or null (neither). */
+    public function testEmailRedirect(): ?string
+    {
+        if (! $this->userSession->isAdmin()) {
+            return null;
+        }
+        $page = strtolower($this->router->getController().'::'.$this->router->getAction());
+        return match ($page) {
+            'configcontroller::email' => 'email',
+            'stewardsettingscontroller::show' => '',
+            default => null,
+        };
     }
 
     /**
