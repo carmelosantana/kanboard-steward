@@ -12,6 +12,7 @@ use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\ProjectPageSettings;
 use Kanboard\Plugin\Steward\Model\PublicActivity;
+use Kanboard\Plugin\Steward\Model\PublicPage;
 use Kanboard\Plugin\Steward\Model\SwitchActionTable;
 use Kanboard\Plugin\Steward\Plugin;
 
@@ -234,16 +235,17 @@ class PublicProjectTest extends Base
 
     // --- headers ----------------------------------------------------------------------------------------
 
-    public function testHeadersNoReferrerAndNoindexUnlessListed(): void
+    /** The URL holds the token: never indexed, even for a listed project (its /explore page is the one to index). */
+    public function testHeadersNoReferrerAndAlwaysNoindex(): void
     {
-        $headers = $this->show($this->token())->headers();
-        $this->assertSame('no-referrer', $headers['Referrer-Policy'] ?? null);
-        $this->assertSame('noindex', $headers['X-Robots-Tag'] ?? null);
-
-        $this->publish(['listed' => true]);
-        $headers = $this->show($this->token())->headers();
-        $this->assertSame('no-referrer', $headers['Referrer-Policy'] ?? null);
-        $this->assertArrayNotHasKey('X-Robots-Tag', $headers);
+        foreach ([false, true] as $listed) {
+            $this->publish(['listed' => $listed]);
+            $response = $this->show($this->token());
+            $headers = $response->headers();
+            $this->assertSame('no-referrer', $headers['Referrer-Policy'] ?? null);
+            $this->assertSame('noindex', $headers['X-Robots-Tag'] ?? null);
+            $this->assertStringContainsString('<meta name="robots" content="noindex,nofollow">', $response->body());
+        }
     }
 
     // --- nothing private leaks --------------------------------------------------------------------------
@@ -258,6 +260,17 @@ class PublicProjectTest extends Base
         foreach (['/public/', 'BoardViewController', 'TaskViewController', 'FeedController', 'ICalendarController', '/feed/', '/ical/'] as $needle) {
             $this->assertStringNotContainsString($needle, $html);
         }
+    }
+
+    public function testATokenPastedIntoDescriptionOrTaglineIsHidden(): void
+    {
+        $token = $this->token();
+        $this->container['projectModel']->update(['id' => $this->project, 'description' => 'Board: /public/board/'.$token]);
+        $this->container['db']->table(ProjectPageSettings::TABLE)->eq('project_id', $this->project)->update(['tagline' => 'See '.$token]);
+        $html = $this->show($token)->body();
+        $this->assertStringNotContainsString($token, $html);
+        $this->assertStringContainsString('See '.PublicPage::HIDDEN, $html);
+        $this->assertStringContainsString('/public/board/'.PublicPage::HIDDEN, $html);
     }
 
     public function testNoCommentsFilesEmailsUsernamesOrHiddenFieldsEvenWithNames(): void

@@ -429,6 +429,8 @@ final class SwitchActionTable
         'StewardProjectSettingsController::save' => 'write',
         'StewardProjectHomeController::show' => 'read',
         'StewardPublicController::show' => 'read',
+        'StewardExploreController::index' => 'read',
+        'StewardExploreController::show' => 'read',
     ];
 
     /**

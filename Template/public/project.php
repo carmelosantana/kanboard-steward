@@ -3,19 +3,9 @@
  * Public project page (spec §5.3) inside core's layout with no_layout: no app header, no jQuery. Templates here
  * get only the public-safe panel data and the project name; nothing links into the app or to core's token pages.
  */
-$stewardLogo = $this->stewardBranding->logoUrl();
-$stewardName = $this->stewardBranding->siteName();
 ?>
 <main class="steward-public">
-    <?php if ($stewardLogo !== '' || $stewardName !== ''): ?>
-        <div class="steward-public-brand">
-            <?php if ($stewardLogo !== ''): ?>
-                <img src="<?= $this->text->e($stewardLogo) ?>" alt="<?= $this->text->e($stewardName !== '' ? $stewardName : 'Kanboard') ?>" class="steward-public-logo">
-            <?php else: ?>
-                <span class="steward-public-site"><?= $this->text->e($stewardName) ?></span>
-            <?php endif ?>
-        </div>
-    <?php endif ?>
+    <?= $this->render('Steward:public/brand') ?>
     <h1 class="steward-public-title"><?= $this->text->e($project['name']) ?></h1>
     <?php foreach ($panels as $name => $data): ?>
         <section class="steward-public-panel steward-public-panel-<?= $this->text->e($name) ?>" data-steward-panel="<?= $this->text->e($name) ?>">

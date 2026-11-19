@@ -2,16 +2,15 @@
 namespace Kanboard\Plugin\Steward\Controller;
 
 use Kanboard\Controller\BaseController;
-use Kanboard\Plugin\Steward\Helper\StewardTextHelper;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
-use Kanboard\Plugin\Steward\Model\PanelData;
 use Kanboard\Plugin\Steward\Model\ProjectPageSettings;
-use Kanboard\Plugin\Steward\Model\PublicActivity;
+use Kanboard\Plugin\Steward\Model\PublicPage;
 
 /**
  * Public project page (spec §5.3), anonymous, at /public/project/:token. Shown only while the feature, core's
  * public access and the project's Public page are all on; anything else gets FeatureGate's 404, so a visitor
- * can't tell which one is missing. The token is the only key and never appears in the page.
+ * can't tell which one is missing. The token is the only key and never appears in the page. Never indexed: a
+ * listed project's indexable URL is /explore/:identifier.
  */
 class StewardPublicController extends BaseController
 {
@@ -21,47 +20,13 @@ class StewardPublicController extends BaseController
         $this->response->withHeader('Referrer-Policy', 'no-referrer');
 
         $project = $this->publicProject($this->request->getStringParam('token'));
-        if ($project === null) {
+        $settings = $project !== null ? (new ProjectPageSettings($this->container))->get((int) $project['id']) : null;
+        if ($settings === null || ! $settings['public']) {
             $this->response->html(FeatureGate::NOT_FOUND_BODY, 404);
             return;
         }
-        $projectId = (int) $project['id'];
-        $settings = (new ProjectPageSettings($this->container))->get($projectId);
-        if (! $settings['public']) {
-            $this->response->html(FeatureGate::NOT_FOUND_BODY, 404);
-            return;
-        }
-        if (! $settings['listed']) {
-            $this->response->withHeader('X-Robots-Tag', 'noindex');
-        }
-
-        $data = new PanelData($this->container);
-        $panels = [];
-        foreach ($settings['public_panels'] as $name) {
-            if (! in_array($name, ProjectPageSettings::PUBLIC_PANELS, true)) {
-                continue;
-            }
-            $panels[$name] = match ($name) {
-                // Steward's parser in public mode, whether or not the markdown feature swapped the text helper.
-                'description' => (new StewardTextHelper($this->container))->markdownPublic($project['description'] ?? null),
-                'progress' => $data->progress($projectId),
-                'board' => $data->board($projectId, true),
-                'completed' => $data->publicCompleted($projectId),
-                'activity' => (new PublicActivity($this->container))->recent($projectId, $settings['show_names']),
-                default => null,
-            };
-        }
-
-        // Only this page loads the public stylesheet.
-        $this->hook->on('template:layout:css', ['template' => 'plugins/Steward/Assets/css/public.css']);
-        $this->response->html($this->helper->layout->app('Steward:public/project', [
-            'title' => $project['name'],
-            'no_layout' => true,
-            'not_editable' => true,
-            'project' => ['name' => (string) $project['name']],
-            'settings' => $settings,
-            'panels' => $panels,
-        ]));
+        $this->response->withHeader('X-Robots-Tag', 'noindex');
+        $this->response->html((new PublicPage($this->container))->project($project, $settings, false));
     }
 
     /** The project for $token while the feature and core public access are on (repeats FeatureGate's check). */

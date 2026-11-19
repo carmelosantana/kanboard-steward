@@ -31,6 +31,8 @@ class AclCheck extends Base
             ['StewardProjectHomeController', ['show'], Role::APP_USER],
             // Anonymous: the token in the URL is the only key (spec §5.3).
             ['StewardPublicController', ['show'], Role::APP_PUBLIC],
+            // Anonymous directory and listed pages (spec §5.4).
+            ['StewardExploreController', ['index', 'show'], Role::APP_PUBLIC],
         ],
         'projectAccessMap' => [
             ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],

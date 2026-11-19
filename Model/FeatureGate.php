@@ -31,6 +31,9 @@ class FeatureGate extends Base
         'StewardProjectSettingsController::*' => 'project_pages',
         'StewardProjectHomeController::*' => 'project_pages',
         'StewardPublicController::show' => 'public_pages',
+        // show also needs public_pages; the controller checks that itself.
+        'StewardExploreController::index' => 'explore',
+        'StewardExploreController::show' => 'explore',
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */
