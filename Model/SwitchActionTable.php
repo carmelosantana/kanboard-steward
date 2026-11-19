@@ -420,6 +420,9 @@ final class SwitchActionTable
         'StewardSettingsController::show' => 'blocked',
         'StewardSettingsController::save' => 'blocked',
         'StewardAuditController::index' => 'blocked',
+        'StewardBrandingController::show' => 'blocked',
+        'StewardBrandingController::save' => 'blocked',
+        'StewardBrandingController::image' => 'read',
     ];
 
     /**

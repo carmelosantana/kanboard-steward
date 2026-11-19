@@ -18,6 +18,19 @@ final class SettingsSchema
         'steward_audit_retention_days' => [180, 7, 3650],
     ];
 
+    /**
+     * Branding keys (spec §3), all empty by default. Only Branding and the branding page write them; filter()
+     * never passes them, so the settings form can't point a path at another object (images are served publicly).
+     */
+    public const BRANDING = [
+        'steward_site_name',
+        'steward_logo_path',
+        'steward_logo_hash',
+        'steward_favicon32_path',
+        'steward_favicon180_path',
+        'steward_favicon_hash',
+    ];
+
     public static function featureKey(string $feature): string
     {
         return 'steward_'.$feature;
@@ -32,6 +45,9 @@ final class SettingsSchema
         }
         foreach (self::NUMBERS as $key => [$default]) {
             $defaults[$key] = (string) $default;
+        }
+        foreach (self::BRANDING as $key) {
+            $defaults[$key] = '';
         }
         return $defaults;
     }

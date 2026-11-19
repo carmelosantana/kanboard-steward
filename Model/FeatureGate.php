@@ -26,6 +26,8 @@ class FeatureGate extends Base
         'StewardSwitchController::start' => 'switching',
         // Leaving a switch must always work, even right after switching was turned off.
         'StewardSwitchController::back' => self::ALWAYS,
+        // Off means core's default logo and favicon: the image endpoint answers 404 too.
+        'StewardBrandingController::*' => 'branding',
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */

@@ -4,6 +4,7 @@ namespace Kanboard\Plugin\Steward;
 use Kanboard\Core\Plugin\Base;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
+use Kanboard\Plugin\Steward\Model\Branding;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchGuard;
@@ -23,6 +24,7 @@ class Plugin extends Base
         $this->container[AclCheck::FLAG] = false;
         $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
         $this->container['stewardSwitching'] = fn ($c) => new SwitchService($c);
+        $this->container['stewardBranding'] = fn ($c) => new Branding($c);
 
         // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
         $acl = $this->container['stewardAcl'];
@@ -30,6 +32,10 @@ class Plugin extends Base
         $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
         $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
         $this->route->addRoute('steward/audit', 'StewardAuditController', 'index', 'Steward');
+        if ($this->container['stewardFeatures']->isEnabled('branding')) {
+            $this->route->addRoute('steward/branding', 'StewardBrandingController', 'show', 'Steward');
+            $this->route->addRoute('steward/branding/save', 'StewardBrandingController', 'save', 'Steward');
+        }
         // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
         // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so
         // the check and the gate run again last, in case one of them replaced a rule.

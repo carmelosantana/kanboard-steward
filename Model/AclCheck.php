@@ -23,6 +23,9 @@ class AclCheck extends Base
             ['StewardSwitchController', ['confirm', 'start'], Role::APP_ADMIN],
             // While switched the browser is the target, so any signed-in user; the action itself refuses unless switched.
             ['StewardSwitchController', ['back'], Role::APP_USER],
+            ['StewardBrandingController', ['show', 'save'], Role::APP_ADMIN],
+            // The login page and every layout show the logo and favicon.
+            ['StewardBrandingController', ['image'], Role::APP_PUBLIC],
         ],
         'projectAccessMap' => [],
     ];

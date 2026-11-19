@@ -48,3 +48,6 @@
 .steward-link-button:focus-visible {
     text-decoration: underline;
 }
+
+/* Branding settings page */
+.steward-branding-preview { max-width: 100%; height: auto; max-height: 128px; }
