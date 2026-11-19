@@ -133,7 +133,8 @@ class AuditControllerTest extends Base
         $this->row('login.success', time());
         $this->loginAs(1);
         $html = $this->index([]);
-        $this->assertDoesNotMatchRegularExpression('/delete|remove/i', $html);
+        $this->assertDoesNotMatchRegularExpression('/(href|action)="[^"]*(delete|remove)/i', $html);
+        $this->assertDoesNotMatchRegularExpression('/<form[^>]*method="post"/i', $html);
     }
 
     public function testNewestFirstAndFiltersByEventUserAndDate(): void

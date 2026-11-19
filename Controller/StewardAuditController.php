@@ -16,17 +16,19 @@ class StewardAuditController extends BaseController
             throw new AccessForbiddenException();
         }
 
+        $from = $this->date('from');
+        $to = $this->date('to');
         $form = [
             'event' => $this->param('event'),
             'user_id' => ctype_digit($this->param('user_id')) ? $this->param('user_id') : '',
-            'from' => $this->date('from') !== null ? $this->param('from') : '',
-            'to' => $this->date('to') !== null ? $this->param('to') : '',
+            'from' => $from !== null ? $from->format('Y-m-d') : '',
+            'to' => $to !== null ? $to->format('Y-m-d') : '',
         ];
         $filters = [
             'event' => $form['event'],
             'user_id' => $form['user_id'],
-            'from' => $form['from'] !== '' ? $this->date('from')->getTimestamp() : '',
-            'to' => $form['to'] !== '' ? $this->date('to')->modify('+1 day')->getTimestamp() - 1 : '',
+            'from' => $from !== null ? $from->getTimestamp() : '',
+            'to' => $to !== null ? $to->modify('+1 day')->getTimestamp() - 1 : '',
         ];
 
         $audit = $this->container['stewardAudit'];

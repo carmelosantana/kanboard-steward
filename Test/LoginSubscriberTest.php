@@ -44,6 +44,18 @@ class LoginSubscriberTest extends Base
         $this->alice = (new UserModel($this->container))->create(['username' => 'alice', 'name' => 'Alice Example']);
     }
 
+    protected function tearDown(): void
+    {
+        unset($_SESSION['scope']);
+        parent::tearDown();
+    }
+
+    /** What core's API AuthenticationMiddleware does before it authenticates (session_set('scope', 'API')). */
+    private function asApi(): void
+    {
+        session_set('scope', 'API');
+    }
+
     private function rows(): array
     {
         return $this->container['db']->table(AuditLog::TABLE)->asc('id')->findAll();
@@ -61,7 +73,50 @@ class LoginSubscriberTest extends Base
         $this->assertSame($this->alice, (int) $rows[0]['subject_user_id']);
         $this->assertSame('198.51.100.4', $rows[0]['ip']);
         $this->assertSame('TestAgent/1.0', $rows[0]['user_agent']);
-        $this->assertSame(['auth_type' => 'Database'], json_decode($rows[0]['details'], true));
+        $this->assertSame(['auth_type' => 'Database', 'source' => 'web'], json_decode($rows[0]['details'], true));
+    }
+
+    public function testApiSuccessWritesNothing(): void
+    {
+        $this->asApi();
+        $this->container['userSession']->initialize($this->container['userModel']->getById($this->alice));
+        $this->container['dispatcher']->dispatch(new AuthSuccessEvent('Database'), AuthenticationManager::EVENT_SUCCESS);
+        $this->assertSame([], $this->rows());
+    }
+
+    public function testApiFailureWritesCappedFailureWithSourceApi(): void
+    {
+        $pdo = $this->container['db']->getConnection();
+        $pdo->beginTransaction();
+        $st = $pdo->prepare('INSERT INTO '.AuditLog::TABLE." (created_at, event, details) VALUES (?, 'login.failure', '{}')");
+        for ($i = 0; $i < AuditLog::FAILURE_CAP; $i++) {
+            $st->execute([time() - 1000 + $i % 100]);
+        }
+        $pdo->commit();
+
+        $this->asApi();
+        $this->container['dispatcher']->dispatch(new AuthFailureEvent('alice'), AuthenticationManager::EVENT_FAILURE);
+
+        $this->assertSame(AuditLog::FAILURE_CAP, $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login.failure')->count());
+        $last = $this->container['db']->table(AuditLog::TABLE)->desc('id')->findOne();
+        $this->assertSame('login.failure', $last['event']);
+        $this->assertSame($this->alice, (int) $last['subject_user_id']);
+        $this->assertSame(['username' => 'alice', 'source' => 'api'], json_decode($last['details'], true));
+    }
+
+    public function testRealApiPasswordLoginWritesOnlyTheFailure(): void
+    {
+        $this->container['userModel']->update(['id' => $this->alice, 'password' => 'correct-horse']);
+        $auth = $this->container['authenticationManager'];
+        $auth->register(new \Kanboard\Auth\DatabaseAuth($this->container));
+        $this->asApi();
+
+        $this->assertFalse($auth->passwordAuthentication('alice', 'wrong'));
+        $this->assertTrue($auth->passwordAuthentication('alice', 'correct-horse'));
+
+        $rows = $this->rows();
+        $this->assertSame(['login.failure'], array_column($rows, 'event'));
+        $this->assertSame('api', json_decode($rows[0]['details'], true)['source']);
     }
 
     public function testFailureWritesUsernameAsTypedCutTo64Chars(): void
@@ -74,7 +129,7 @@ class LoginSubscriberTest extends Base
         $this->assertSame('login.failure', $rows[0]['event']);
         $this->assertNull($rows[0]['actor_user_id']);
         $this->assertNull($rows[0]['subject_user_id']);
-        $this->assertSame(['username' => str_repeat('é', 64)], json_decode($rows[0]['details'], true));
+        $this->assertSame(['username' => str_repeat('é', 64), 'source' => 'web'], json_decode($rows[0]['details'], true));
     }
 
     public function testFailureForAKnownUserLinksTheSubject(): void
@@ -85,7 +140,7 @@ class LoginSubscriberTest extends Base
         $this->assertCount(1, $rows);
         $this->assertSame($this->alice, (int) $rows[0]['subject_user_id']);
         $this->assertNull($rows[0]['actor_user_id']);
-        $this->assertSame(['username' => 'alice'], json_decode($rows[0]['details'], true));
+        $this->assertSame(['username' => 'alice', 'source' => 'web'], json_decode($rows[0]['details'], true));
     }
 
     public function testFailureWithoutUsernameStillWritesARow(): void
@@ -95,7 +150,7 @@ class LoginSubscriberTest extends Base
         $rows = $this->rows();
         $this->assertCount(1, $rows);
         $this->assertSame('login.failure', $rows[0]['event']);
-        $this->assertSame(['username' => ''], json_decode($rows[0]['details'], true));
+        $this->assertSame(['username' => '', 'source' => 'web'], json_decode($rows[0]['details'], true));
     }
 
     public function testRealPasswordLoginWritesRows(): void
