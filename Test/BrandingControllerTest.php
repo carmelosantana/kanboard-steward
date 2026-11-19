@@ -606,6 +606,41 @@ class BrandingControllerTest extends Base
         $this->assertSame(404, $this->image(['slot' => 'logo'])->code());
     }
 
+    /** Defence in depth (spec §1): each action repeats the gate's feature check. Called directly, bypassing it. */
+    public function testEveryActionAnswers404WithBrandingOff(): void
+    {
+        $this->save(['steward_site_name' => 'Acme'], ['logo' => $this->file($this->png())]);
+        $hash = $this->setting('steward_logo_hash');
+        $before = $this->brandingConfig();
+        $objects = $this->storage->objects;
+        $audit = $this->container['db']->table(AuditLog::TABLE)->count();
+        session_set('flash', []);
+
+        $this->container['configModel']->save(['steward_branding' => '0']);
+        $this->container['memoryCache']->flush();
+
+        $image = $this->image(['slot' => 'logo', 'h' => $hash]);
+        $this->assertSame(404, $image->code());
+        $this->assertSame(FeatureGate::NOT_FOUND_BODY, $image->body());
+
+        $save = $this->save(['steward_site_name' => 'Changed', 'remove_logo' => '1'], ['favicon' => $this->file($this->png())]);
+        $this->assertSame(404, $save->code());
+        $this->assertSame(FeatureGate::NOT_FOUND_BODY, $save->body());
+        $this->assertSame($before, $this->brandingConfig());
+        $this->assertSame($objects, $this->storage->objects);
+        $this->assertSame($audit, $this->container['db']->table(AuditLog::TABLE)->count());
+        $this->assertSame([], $this->flash());
+
+        unset($this->container['request']);
+        $this->container['request'] = new Request($this->container, ['REQUEST_METHOD' => 'GET'], ['plugin' => 'Steward'], [], [], []);
+        $show = new StewardBrandingResponse($this->container);
+        unset($this->container['response']);
+        $this->container['response'] = $show;
+        (new StewardBrandingController($this->container))->show();
+        $this->assertSame(404, $show->code());
+        $this->assertSame(FeatureGate::NOT_FOUND_BODY, $show->body());
+    }
+
     public function testBrandingUrlsCarryTheHash(): void
     {
         $branding = $this->container['stewardBranding'];

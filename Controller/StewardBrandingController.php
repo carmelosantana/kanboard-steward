@@ -15,6 +15,9 @@ class StewardBrandingController extends BaseController
 
     public function show(): void
     {
+        if (! $this->featureOn()) {
+            return;
+        }
         $this->assertAdmin();
         $branding = $this->branding();
 
@@ -33,6 +36,9 @@ class StewardBrandingController extends BaseController
      */
     public function save(): void
     {
+        if (! $this->featureOn()) {
+            return;
+        }
         $this->assertAdmin();
         if (! $this->request->isPost()) {
             throw new AccessForbiddenException();
@@ -112,10 +118,13 @@ class StewardBrandingController extends BaseController
     /** Public (the login page shows the logo). `slot` from Branding::IMAGES only; anything else is the fixed 404. */
     public function image(): void
     {
+        if (! $this->featureOn()) {
+            return;
+        }
         $slot = $this->request->getStringParam('slot');
         $image = is_string($slot) && isset(Branding::IMAGES[$slot]) ? $this->branding()->image($slot) : null;
         if ($image === null) {
-            $this->response->html(FeatureGate::NOT_FOUND_BODY, 404);
+            $this->notFound();
             return;
         }
 
@@ -163,6 +172,24 @@ class StewardBrandingController extends BaseController
             }
         }
         return false;
+    }
+
+    /**
+     * Repeats FeatureGate's check (spec §1, defence in depth): with branding off every action answers the
+     * gate's fixed 404, before ACL-dependent work, so a bypassed gate still serves nothing.
+     */
+    private function featureOn(): bool
+    {
+        if ($this->container['stewardFeatures']->isEnabled('branding')) {
+            return true;
+        }
+        $this->notFound();
+        return false;
+    }
+
+    private function notFound(): void
+    {
+        $this->response->html(FeatureGate::NOT_FOUND_BODY, 404);
     }
 
     private function branding(): Branding
