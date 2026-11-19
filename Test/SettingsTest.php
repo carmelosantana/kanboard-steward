@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/../Schema/Sqlite.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
@@ -26,6 +27,8 @@ class SettingsTest extends Base
     protected function setUp(): void
     {
         parent::setUp();
+        // save() writes a settings.changed audit row.
+        \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         (new Plugin($this->container))->initialize();
         $this->container['helper']->register('layout', StewardBodyOnlyLayoutHelper::class);
     }

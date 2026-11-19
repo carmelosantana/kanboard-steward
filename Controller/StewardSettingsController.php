@@ -35,7 +35,20 @@ class StewardSettingsController extends BaseController
             throw new AccessForbiddenException();
         }
 
-        if ($this->configModel->save(SettingsSchema::filter($values))) {
+        $clean = SettingsSchema::filter($values);
+        $defaults = SettingsSchema::defaults();
+        $changed = [];
+        foreach ($clean as $key => $value) {
+            if ((string) $this->configModel->get($key, $defaults[$key]) !== $value) {
+                $changed[] = $key;
+            }
+        }
+
+        if ($this->configModel->save($clean)) {
+            // Key names only, never values. Written after save() has closed its transaction.
+            if ($changed !== []) {
+                $this->container['stewardAudit']->logInternal('settings.changed', (int) $this->userSession->getId(), null, ['keys' => $changed]);
+            }
             $this->flash->success(t('Settings saved successfully.'));
         } else {
             $this->flash->failure(t('Unable to save your settings.'));

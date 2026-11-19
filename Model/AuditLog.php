@@ -71,6 +71,18 @@ class AuditLog extends Base
         }
     }
 
+    /** @return list<string> distinct events present in the table, sorted; for the audit page's filter. */
+    public function events(): array
+    {
+        try {
+            $events = $this->db->table(self::TABLE)->distinct('event')->asc('event')->findAllByColumn('event');
+            return array_values(array_map('strval', $events ?: []));
+        } catch (Throwable $e) {
+            $this->logger->error('Steward audit: read failed: '.$e->getMessage());
+            return [];
+        }
+    }
+
     /** Drops rows past retention and caps failure rows; does the work at most once a day. */
     public function prune(): void
     {

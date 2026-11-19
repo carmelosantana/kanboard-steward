@@ -19,6 +19,7 @@ class AclCheck extends Base
     public const EXPECTED = [
         'applicationAccessMap' => [
             ['StewardSettingsController', ['show', 'save'], Role::APP_ADMIN],
+            ['StewardAuditController', ['index'], Role::APP_ADMIN],
         ],
         'projectAccessMap' => [],
     ];

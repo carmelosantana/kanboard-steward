@@ -6,6 +6,7 @@ use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
+use Kanboard\Plugin\Steward\Subscriber\LoginSubscriber;
 
 class Plugin extends Base
 {
@@ -24,6 +25,7 @@ class Plugin extends Base
         $acl->register();
         $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
         $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
+        $this->route->addRoute('steward/audit', 'StewardAuditController', 'index', 'Steward');
         // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard
         // (added after these). Plugins loaded after Steward register onStartup on the same event after us, so
         // the check and the gate run again last, in case one of them replaced a rule.
@@ -32,6 +34,8 @@ class Plugin extends Base
         $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap']);
         $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap'], self::LATE_BOOTSTRAP);
         $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap'], self::LATE_BOOTSTRAP);
+
+        $this->dispatcher->addSubscriber(new LoginSubscriber($this->container));
 
         $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
     }

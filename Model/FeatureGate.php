@@ -20,6 +20,8 @@ class FeatureGate extends Base
      */
     public const MAP = [
         'StewardSettingsController::*' => self::ALWAYS,
+        // Read-only on purpose: index is its only action, so no wildcard.
+        'StewardAuditController::index' => self::ALWAYS,
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */
