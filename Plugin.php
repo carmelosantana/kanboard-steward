@@ -3,6 +3,7 @@ namespace Kanboard\Plugin\Steward;
 
 use Kanboard\Core\Plugin\Base;
 use Kanboard\Plugin\Steward\Model\AclCheck;
+use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 
@@ -14,6 +15,7 @@ class Plugin extends Base
     public function initialize(): void
     {
         $this->container['stewardFeatures'] = fn ($c) => new FeatureFlags($c);
+        $this->container['stewardAudit'] = fn ($c) => new AuditLog($c);
         $this->container[AclCheck::FLAG] = false;
         $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
 
