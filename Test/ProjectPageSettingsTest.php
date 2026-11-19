@@ -150,7 +150,7 @@ class ProjectPageSettingsTest extends Base
         $this->assertSame([
             'tagline' => '',
             'links' => [],
-            'panels' => ['header', 'description', 'progress', 'board', 'activity', 'completed', 'files'],
+            'panels' => ['header', 'description', 'progress', 'activity'],
             'public_panels' => ['header', 'description', 'progress'],
             'public' => false,
             'listed' => false,
@@ -223,7 +223,7 @@ class ProjectPageSettingsTest extends Base
         ]);
         $settings = $this->settings()->get($this->project);
         $this->assertSame([], $settings['links']);
-        $this->assertSame(ProjectPageSettings::HOME_PANELS, $settings['panels']);
+        $this->assertSame(['header', 'description', 'progress', 'activity'], $settings['panels']);
         $this->assertSame([], $settings['public_panels']);
     }
 

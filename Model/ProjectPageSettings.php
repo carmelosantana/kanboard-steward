@@ -10,10 +10,12 @@ use Kanboard\Core\Base;
  */
 class ProjectPageSettings extends Base
 {
-    /** Home panels, in their default order. */
+    /** Every Home panel, in the order the settings form lists them. */
     public const HOME_PANELS = ['header', 'description', 'progress', 'board', 'activity', 'completed', 'files'];
     /** Panels safe on the public page: never files. */
     public const PUBLIC_PANELS = ['header', 'description', 'progress', 'board', 'completed', 'activity'];
+    /** Spec §5.2 defaults. */
+    public const DEFAULT_PANELS = ['header', 'description', 'progress', 'activity'];
     public const DEFAULT_PUBLIC_PANELS = ['header', 'description', 'progress'];
 
     public const TAGLINE_MAX = 160;
@@ -52,7 +54,7 @@ class ProjectPageSettings extends Base
         return [
             'tagline' => $raw('tagline') ?? '',
             'links' => array_slice($links, 0, self::LINKS_MAX),
-            'panels' => self::known($this->decodeList($raw('panels')), self::HOME_PANELS, self::HOME_PANELS),
+            'panels' => self::known($this->decodeList($raw('panels')), self::HOME_PANELS, self::DEFAULT_PANELS),
             'public_panels' => self::known($this->decodeList($raw('public_panels')), self::PUBLIC_PANELS, self::DEFAULT_PUBLIC_PANELS),
             'public' => $raw('public') === '1',
             'listed' => $raw('listed') === '1',
