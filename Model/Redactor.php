@@ -13,16 +13,21 @@ class Redactor
 
     /** pattern => replacement, applied in order. */
     private const RULES = [
-        // (Proxy-)Authorization: scheme and credentials, to end of line.
-        '/(?<![A-Za-z-])((?:proxy-)?authorization)\s*[:=][^\r\n]*/i' => '$1='.self::MASK,
+        // (Proxy-)Authorization: scheme and credentials, to end of line. The key may be quoted (JSON).
+        '/(?<![A-Za-z-])((?:proxy-)?authorization)["\']?\s*[:=][^\r\n]*/i' => '$1='.self::MASK,
         // URL userinfo: scheme://user:pass@host.
         '~\b([a-z][a-z0-9+.-]*://)[^/\s@]+@~i' => '$1'.self::MASK.'@',
         // SMTP AUTH with an initial response.
         '/\b(AUTH\s+(?:PLAIN|LOGIN|CRAM-MD5|XOAUTH2))[ \t]+[^\r\n]+/i' => '$1 '.self::MASK,
         // A bare base64 line answering a 334 challenge (AUTH LOGIN username/password, CRAM-MD5 response).
         '~(\b334\b[^\r\n]*\r?\n)([<>]?[ \t]*)[A-Za-z0-9+/]+={0,2}[ \t]*(?=\r?\n|$)~' => '$1$2'.self::MASK,
-        // key: value / key=value, the value bare or quoted (quotes may hold spaces).
-        '/(?<![A-Za-z])(password|passwd|pass|pwd|secret|token|api[_-]?key|username|user)\s*[:=]\s*("[^"]*"|\'[^\']*\'|\S+)/i' => '$1='.self::MASK,
+        // key: value / key=value. The key may be quoted (JSON) and compound when it ends in a listed word after a
+        // `_`/`-` or a camelCase hump (access_token, x-api-key, authToken), never mid-word (bypass, superuser).
+        // Prefix segments are bounded and each ends in a fixed separator or before an upper-case letter, so
+        // backtracking stays small. The value is bare or quoted; an unterminated quote runs to end of line.
+        '/(?<![A-Za-z0-9_-])((?:[A-Za-z0-9]{1,32}[_-]|[A-Z]?[a-z0-9]{1,32}(?=[A-Z])){0,4}'
+            .'(?i:password|passwd|pass|pwd|secret|token|api[_-]?key|credentials?|username|user))'
+            .'["\']?\s*[:=]\s*("[^"\r\n]*"?|\'[^\'\r\n]*\'?|\S+)/' => '$1='.self::MASK,
     ];
 
     /** @var list<string> longest first */

@@ -29,6 +29,16 @@ class RedactorTest extends TestCase
             'auth plain' => ['> AUTH PLAIN AG9wcwBodW50ZXIy', ['AG9wcwBodW50ZXIy'], ['AUTH PLAIN [redacted]']],
             'auth login 334 lines' => ["> AUTH LOGIN\n< 334 VXNlcm5hbWU6\n> b3Bz\n< 334 UGFzc3dvcmQ6\n> aHVudGVyMg==\n< 535 failed",
                 ['b3Bz', 'aHVudGVyMg=='], ['AUTH LOGIN', '334 VXNlcm5hbWU6', '535 failed']],
+            'json double-quoted' => ['{"password":"x y","user":"bob"}', ['x y', 'bob'], ['"password=[redacted]', '"user=[redacted]']],
+            'json single-quoted' => ["{'token': 'abc def'}", ['abc', 'def'], ["'token=[redacted]"]],
+            'json authorization' => ['{"Authorization":"Bearer abc.def"}', ['Bearer', 'abc.def'], ['"Authorization=[redacted]']],
+            'unterminated quote' => ["password: \"a b c\nnext", ['a b c', 'b c'], ['password=[redacted]', 'next']],
+            'camelCase compound' => ['authToken=xyz123', ['xyz123'], ['authToken=[redacted]']],
+            'PascalCase compound' => ['ClientSecret: xyz123', ['xyz123'], ['ClientSecret=[redacted]']],
+            'snake compound' => ['access_token=tok_456', ['tok_456'], ['access_token=[redacted]']],
+            'kebab compound' => ['x-api-key: k-789', ['k-789'], ['x-api-key=[redacted]']],
+            'credentials' => ['credentials=ops:hunter2', ['ops:hunter2', 'hunter2'], ['credentials=[redacted]']],
+            'credential' => ['credential: abc', ['abc'], ['credential=[redacted]']],
             'auth xoauth2' => ['AUTH XOAUTH2 dXNlcj1vcHMBYXV0aD1CZWFyZXIgeHl6AQE=', ['dXNlcj1vcHMBYXV0aD1CZWFyZXIgeHl6AQE='], ['AUTH XOAUTH2 [redacted]']],
         ];
     }
@@ -57,6 +67,9 @@ class RedactorTest extends TestCase
 
     public function testPlainTextIsUnchanged(): void
     {
+        foreach (['Cannot bypass: tokens expired for users', 'superuser=root rejected', 'passed: 3, compass: north'] as $text) {
+            $this->assertSame($text, (new Redactor())->redact($text));
+        }
         $this->assertSame('Connection could not be established with host mail', (new Redactor())->redact('Connection could not be established with host mail'));
     }
 }

@@ -297,6 +297,7 @@ class TestEmailTest extends Base
             'url userinfo' => ['Connection to smtp://ops:hunter2@mail.example.test failed', ['ops:', 'hunter2'], 'smtp://[redacted]@'],
             'auth plain' => ['Expected 235 after AUTH PLAIN AG9wcwBodW50ZXIy', ['AG9wcwBodW50ZXIy'], 'AUTH PLAIN [redacted]'],
             'quoted password' => ['password="correct horse" rejected', ['correct', 'horse'], 'password=[redacted]'],
+            'json body' => ['Resend 401: {"Authorization":"Bearer abc.def"} {"password":"x y"}', ['Bearer', 'abc.def', 'x y'], '"Authorization=[redacted]'],
             'basic header' => ['Authorization: Basic b3BzOmh1bnRlcjI=', ['Basic', 'b3BzOmh1bnRlcjI='], 'Authorization=[redacted]'],
         ];
     }
