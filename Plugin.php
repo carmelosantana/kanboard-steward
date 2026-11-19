@@ -13,6 +13,7 @@ use Kanboard\Plugin\Steward\Model\SwitchGuard;
 use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Subscriber\LoginSubscriber;
 use Kanboard\Plugin\Steward\Subscriber\SwitchSubscriber;
+use Pimple\Exception\FrozenServiceException;
 
 class Plugin extends Base
 {
@@ -30,8 +31,14 @@ class Plugin extends Base
         // Always registered so other plugins can call it; it answers '' while branding is off.
         $this->helper->register('stewardBranding', StewardBrandingHelper::class);
         // Spec §4: one swap of the text helper covers templates, notification emails and the editor preview.
+        // A plugin loaded earlier that already used helper->text froze the entry; carry on without the swap rather
+        // than let the exception (caught by core's Loader) skip the rest of initialize().
         if ($this->container['stewardFeatures']->isEnabled('markdown')) {
-            $this->helper->register('text', StewardTextHelper::class);
+            try {
+                $this->helper->register('text', StewardTextHelper::class);
+            } catch (FrozenServiceException $e) {
+                $this->logger->error('Steward: text helper already in use before Steward loaded; safer Markdown is off');
+            }
         }
 
         // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.

@@ -249,6 +249,43 @@ class MarkdownSafetyTest extends Base
     public function testPlainHeadingIsUnchanged(): void
     {
         $this->assertSame('<h1>Title</h1>', $this->parser()->text('# Title'));
+        $this->assertSame('<h3>Title</h3>', $this->parser()->text('### Title ###'));
+        $this->assertSame('<p>####### Seven</p>', $this->parser()->text('####### Seven'));
+    }
+
+    public function testHeadingStartingWithTaskReferenceKeepsTheHashAndLinks(): void
+    {
+        $taskId = $this->createTask($this->createProject('A', false), 'Task');
+
+        $html = $this->parser()->text('## #'.$taskId.' notes');
+
+        $this->assertMatchesRegularExpression('!^<h2><a href="[^"]*task_id='.$taskId.'[^"]*">#'.$taskId.'</a> notes</h2>$!', $html);
+    }
+
+    /** Parsedown 1.7 makes `##42 x` an h2 (no space needed); the last marker hash belongs to the #N. */
+    public function testHeadingWithoutSpaceBeforeTaskReferenceKeepsTheHash(): void
+    {
+        $taskId = $this->createTask($this->createProject('A', false), 'Task');
+
+        $html = $this->parser()->text('##'.$taskId.' x');
+
+        $this->assertMatchesRegularExpression('!^<h2><a href="[^"]*task_id='.$taskId.'[^"]*">#'.$taskId.'</a> x</h2>$!', $html);
+    }
+
+    public function testHeadingTaskReferenceFollowsPublicAndPlainRules(): void
+    {
+        $projectA = $this->createProject('A', true);
+        $projectB = $this->createProject('B', true);
+        $taskA = $this->createTask($projectA, 'In A');
+
+        $matching = $this->parser(true, $this->token($projectA))->text('## #'.$taskA.' notes');
+        $this->assertStringContainsString('token='.$this->token($projectA), $matching);
+        $this->assertSame('#'.$taskA.' notes', trim($this->text($matching)));
+
+        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->parser(true, $this->token($projectB))->text('## #'.$taskA.' notes'));
+        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->parser(true, null)->text('## #'.$taskA.' notes'));
+        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->parser(false, null, true)->text('## #'.$taskA.' notes'));
+        $this->assertSame('<h2>#'.$taskA.' x</h2>', $this->parser(false, null, true)->text('##'.$taskA.' x'));
     }
 
     // --- task references and mentions --------------------------------------------------------------------
@@ -354,6 +391,21 @@ class MarkdownSafetyTest extends Base
         $this->boot(false);
         $this->assertNotInstanceOf(StewardTextHelper::class, $this->container['helper']->text);
         $this->assertInstanceOf(TextHelper::class, $this->container['helper']->text);
+    }
+
+    /**
+     * A plugin loaded before Steward that reads helper->text in its initialize() freezes the Pimple entry, so
+     * register() throws FrozenServiceException. Core's Loader would catch it and skip the rest of Steward's
+     * initialize() (ACL, feature gate, switch guard), so Steward must carry on without the swap.
+     */
+    public function testFrozenTextHelperDoesNotAbortInitialize(): void
+    {
+        $this->container['helper']->text->e('freeze');
+
+        $this->boot(true);
+
+        $this->assertNotInstanceOf(StewardTextHelper::class, $this->container['helper']->text);
+        $this->assertNotEmpty($this->container['hook']->getListeners('template:config:sidebar'));
     }
 
     public function testTaskCreatedEmailUsesTheSafeParser(): void

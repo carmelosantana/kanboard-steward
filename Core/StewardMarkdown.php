@@ -93,15 +93,35 @@ class StewardMarkdown extends Markdown
     }
 
     /**
-     * Core replaces a whole heading with the first #N link it finds. A line that starts with #N (no heading
-     * marker run) is a paragraph; anything else is a normal heading whose #N is linked inline.
+     * Core replaces a whole heading with the first #N link it finds, and Parsedown's blockHeader trims every
+     * leading '#' from the text, so `## #42 notes` lost its '#'. A line that starts with #N is a paragraph;
+     * otherwise the heading/non-heading decision is Parsedown 1.7's (marker run of 1-6 '#', no space needed)
+     * and the text keeps any #N, which is then linked inline. In `##42 x` the last marker '#' is the #N's.
      */
     protected function blockCustomHeader($Line)
     {
-        if (preg_match('/^#\d/', $Line['text'])) {
+        $text = $Line['text'];
+        if (preg_match('/^#\d/', $text) || ! isset($text[1])) {
             return null;
         }
-        return $this->blockHeader($Line);
+
+        $level = strspn($text, '#');
+        if ($level > 6) {
+            return null;
+        }
+
+        $rest = substr($text, $level);
+        if (preg_match('/^\d/', $rest)) {
+            $rest = '#'.$rest;
+        }
+
+        return [
+            'element' => [
+                'name' => 'h'.$level,
+                'text' => rtrim(ltrim($rest, ' '), '# '),
+                'handler' => 'line',
+            ],
+        ];
     }
 
     protected function inlineTaskLink(array $Excerpt)
