@@ -28,9 +28,12 @@ class AclCheck extends Base
             ['StewardBrandingController', ['image'], Role::APP_PUBLIC],
             // Any signed-in user gets as far as the project ACL below, which needs a project manager.
             ['StewardProjectSettingsController', ['show', 'save'], Role::APP_USER],
+            ['StewardProjectHomeController', ['show'], Role::APP_USER],
         ],
         'projectAccessMap' => [
             ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],
+            // Core's project default, made explicit: anyone who can view the project sees its Home.
+            ['StewardProjectHomeController', ['show'], Role::PROJECT_VIEWER],
         ],
     ];
 

@@ -60,6 +60,9 @@ class Plugin extends Base
             $this->route->addRoute('steward/project/:project_id/page', 'StewardProjectSettingsController', 'show', 'Steward');
             $this->route->addRoute('steward/project/:project_id/page/save', 'StewardProjectSettingsController', 'save', 'Steward');
             $this->hook->on('template:project:sidebar', ['template' => 'Steward:project/sidebar']);
+            $this->route->addRoute('steward/project/:project_id/home', 'StewardProjectHomeController', 'show', 'Steward');
+            // Spec §5.2: first in the view switcher; core's default view is unchanged.
+            $this->hook->on('template:project-header:view-switcher-before-project-overview', ['template' => 'Steward:project_header/home_link']);
         }
         // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
         // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so

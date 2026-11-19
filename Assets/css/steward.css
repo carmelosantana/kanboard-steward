@@ -78,3 +78,57 @@
 .steward-import {
     margin-bottom: 1.5em;
 }
+
+/* Project Home (spec §5.2): core's page headers and tables, a few layout rules. */
+.steward-home-panel {
+    margin-bottom: 1.5em;
+}
+
+.steward-home-tagline {
+    margin: 0.25em 0 0.5em;
+    opacity: 0.85;
+}
+
+.steward-home-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.25em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.steward-home-empty,
+.steward-home-date,
+.steward-home-count {
+    opacity: 0.7;
+}
+
+.steward-home-progress progress,
+.steward-home-progress-total progress {
+    width: 12em;
+    max-width: 100%;
+    vertical-align: middle;
+}
+
+.steward-home-board {
+    display: flex;
+    gap: 1em;
+    overflow-x: auto;
+}
+
+.steward-home-board-column {
+    flex: 1 1 12em;
+    min-width: 10em;
+}
+
+.steward-home-board-column h3 {
+    margin: 0 0 0.5em;
+    font-size: 1em;
+}
+
+.steward-home-board-column ul,
+.steward-home-completed {
+    margin: 0;
+    padding-left: 1.25em;
+}

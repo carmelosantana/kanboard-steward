@@ -427,6 +427,7 @@ final class SwitchActionTable
         // A switched admin edits a project's page within the target's rights; saves are audited as switch.action.
         'StewardProjectSettingsController::show' => 'read',
         'StewardProjectSettingsController::save' => 'write',
+        'StewardProjectHomeController::show' => 'read',
     ];
 
     /**

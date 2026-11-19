@@ -29,6 +29,7 @@ class FeatureGate extends Base
         // Off means core's default logo and favicon: the image endpoint answers 404 too.
         'StewardBrandingController::*' => 'branding',
         'StewardProjectSettingsController::*' => 'project_pages',
+        'StewardProjectHomeController::*' => 'project_pages',
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */
