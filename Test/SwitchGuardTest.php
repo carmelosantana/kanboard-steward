@@ -34,6 +34,17 @@ class StewardGuardLogSink extends \Kanboard\Core\Log\Base
     }
 }
 
+/** A request with a JSON body: PHPUnit has no php://input. */
+class StewardGuardJsonRequest extends Request
+{
+    public string $body = '';
+
+    public function getBody()
+    {
+        return $this->body;
+    }
+}
+
 final class StewardGuardHalted extends \RuntimeException {}
 
 /** PHPUnit has no PHP session; this guard acts as if there were one, and throws where the real one exits. */
@@ -134,14 +145,16 @@ class SwitchGuardTest extends Base
         return $this->container['stewardSwitching'];
     }
 
-    private function route(string $method, array $get, array $post = [], array $server = []): void
+    private function route(string $method, array $get, array $post = [], array $server = [], string $json = ''): void
     {
         unset($this->container['request'], $this->container['router']);
-        $this->container['request'] = new Request($this->container, $server + [
+        $request = new StewardGuardJsonRequest($this->container, $server + [
             'REQUEST_METHOD' => $method,
             'REMOTE_ADDR' => '203.0.113.9',
             'HTTP_USER_AGENT' => 'SwitchGuardTest/1.0',
         ], $get, $post, [], []);
+        $request->body = $json;
+        $this->container['request'] = $request;
         $this->container['router'] = new Router($this->container);
         $this->container['router']->dispatch();
     }
@@ -277,6 +290,45 @@ class SwitchGuardTest extends Base
         $this->assertStringContainsString('csrf_token', $this->sent[0]);
     }
 
+    /** Like core's BootstrapMiddleware::sendHeaders(): HSTS on HTTPS when ENABLE_HSTS. */
+    public function testRefusalSendsHstsOverHttps(): void
+    {
+        $this->assertTrue(ENABLE_HSTS);
+        $this->route('GET', ['controller' => 'UserApiAccessController', 'action' => 'show'], [], ['HTTPS' => 'on']);
+        $this->assertTrue($this->runGuard());
+        $headers = (new ReflectionProperty(Response::class, 'httpHeaders'))->getValue($this->container['response']);
+        $this->assertSame('max-age=31536000', $headers['Strict-Transport-Security'] ?? null);
+    }
+
+    /** The board's drag and drop sends task_id in a JSON body; project_id comes from the query. */
+    public function testBoardMoveRecordsTheTaskFromTheJsonBody(): void
+    {
+        $this->route('POST', ['controller' => 'BoardAjaxController', 'action' => 'save', 'project_id' => (string) $this->project], [], [],
+            json_encode(['task_id' => $this->task, 'src_column_id' => 1, 'dst_column_id' => 2, 'swimlane_id' => 1, 'position' => 1]));
+        $this->assertFalse($this->runGuard());
+        $details = json_decode($this->auditRows('switch.action')[0]['details'], true);
+        $this->assertSame($this->task, $details['task_id']);
+        $this->assertSame($this->project, $details['project_id']);
+    }
+
+    public function testQueryIdsWinOverTheJsonBody(): void
+    {
+        $this->route('GET', ['controller' => 'TaskReorderController', 'action' => 'reorderColumn', 'project_id' => (string) $this->project], [], [],
+            json_encode(['task_id' => '7', 'project_id' => 999]));
+        $this->assertFalse($this->runGuard());
+        $details = json_decode($this->auditRows('switch.action')[0]['details'], true);
+        $this->assertSame(7, $details['task_id']);
+        $this->assertSame($this->project, $details['project_id']);
+    }
+
+    public function testJsonBodyIsReadOnlyForTheBoardActions(): void
+    {
+        $this->route('POST', ['controller' => 'TaskModificationController', 'action' => 'update'], [], [], json_encode(['task_id' => $this->task]));
+        $this->assertFalse($this->runGuard());
+        $details = json_decode($this->auditRows('switch.action')[0]['details'], true);
+        $this->assertNull($details['task_id']);
+    }
+
     public function testUnknownCoreActionIsRefused(): void
     {
         $this->route('GET', ['controller' => 'BoardViewController', 'action' => 'somethingNew']);
@@ -315,6 +367,17 @@ class SwitchGuardTest extends Base
 
         $this->route('GET', ['plugin' => 'Beta', 'controller' => 'ThingController', 'action' => 'show']);
         $this->assertTrue($this->runGuard(), "Alpha's opt-in never covers Beta's same-named controller");
+    }
+
+    /** Plugin names are case-insensitive (like the router): a registration merges with the suite's rows. */
+    public function testAllowMergesWithSuiteRowsWhateverTheCase(): void
+    {
+        $this->switching()->allow('pulse', ['PulseController::extra' => 'read']);
+        $this->switching()->allow('PULSE', ['PulseController::more' => 'read']);
+        foreach (['index', 'extra', 'more'] as $action) {
+            $this->route('GET', ['plugin' => 'Pulse', 'controller' => 'PulseController', 'action' => $action]);
+            $this->assertFalse($this->runGuard(), $action);
+        }
     }
 
     public function testAllowRejectsBadRegistrations(): void

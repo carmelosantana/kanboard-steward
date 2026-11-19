@@ -21,6 +21,9 @@ class SwitchGuard extends Base
     public const SERVICE_UNAVAILABLE_BODY = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Service Unavailable</title></head>'
         .'<body><h1>Service Unavailable</h1></body></html>';
 
+    /** Core actions that take their ids from a JSON body (the board's drag and drop and column reorder). */
+    private const JSON_IDS = ['boardajaxcontroller::save', 'taskreordercontroller::*'];
+
     /** Leaving must always work: these run even when their action row can't be written. */
     private const LEAVING = ['steward' => ['stewardswitchcontroller::back'], '' => ['authcontroller::logout']];
 
@@ -71,10 +74,7 @@ class SwitchGuard extends Base
             if ($plugin !== '') {
                 $details['plugin'] = $plugin;
             }
-            $details += [
-                'task_id' => $this->request->getIntegerParam('task_id') ?: null,
-                'project_id' => $this->request->getIntegerParam('project_id') ?: null,
-            ];
+            $details += $this->ids($plugin, $controller, $action);
             $written = $this->stewardAudit->logInternal('switch.action', (int) $switch['admin_id'],
                 (int) $this->userSession->getId(), $details, (string) $switch['switch_id']);
             if (! $written && ! $this->isLeaving($plugin, $controller, $action)) {
@@ -87,6 +87,28 @@ class SwitchGuard extends Base
             $switch['last_seen'] = time();
             session_set(SwitchService::SESSION_KEY, $switch);
         }
+    }
+
+    /** task_id and project_id from the query; for the JSON_IDS actions, from the JSON body when the query has none. */
+    private function ids(string $plugin, string $controller, string $action): array
+    {
+        $ids = [
+            'task_id' => $this->request->getIntegerParam('task_id') ?: null,
+            'project_id' => $this->request->getIntegerParam('project_id') ?: null,
+        ];
+        $pair = strtolower($controller.'::'.$action);
+        $wildcard = strtolower($controller).'::*';
+        if ($plugin !== '' || ! array_intersect([$pair, $wildcard], self::JSON_IDS) || ! in_array(null, $ids, true)) {
+            return $ids;
+        }
+        $json = $this->request->getJson();
+        foreach ($ids as $key => $value) {
+            if ($value === null && isset($json[$key])) {
+                $id = filter_var($json[$key], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                $ids[$key] = $id === false ? null : $id;
+            }
+        }
+        return $ids;
     }
 
     private function adminStillAdmin(int $adminId): bool
@@ -113,6 +135,9 @@ class SwitchGuard extends Base
         $this->response->withSecurityHeaders();
         if (ENABLE_XFRAME) {
             $this->response->withXframe();
+        }
+        if (ENABLE_HSTS) {
+            $this->response->withStrictTransportSecurity();
         }
         $this->response->html($body, $status);
         $this->halt();

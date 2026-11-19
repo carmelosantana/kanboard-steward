@@ -35,16 +35,17 @@ class SwitchService extends Base
                 || ! in_array($level, [SwitchActionTable::READ, SwitchActionTable::WRITE], true)) {
                 throw new InvalidArgumentException('Invalid switch registration for '.$plugin.': '.$pair);
             }
-            $this->allowed[$plugin][$pair] = $level;
+            // Plugin names are case-insensitive (the router and SwitchActionTable lower-case them).
+            $this->allowed[strtolower($plugin)][$pair] = $level;
         }
     }
 
-    /** @return array<string,array<string,string>> the suite's view pages (when installed), then allow() calls. */
+    /** @return array<string,array<string,string>> lower-case plugin => the suite's view pages (when installed), then allow() calls. */
     public function registrations(): array
     {
-        $all = SwitchActionTable::suite();
+        $all = array_change_key_case(SwitchActionTable::suite());
         foreach ($this->allowed as $plugin => $actions) {
-            $all[$plugin] = $actions + ($all[$plugin] ?? []);
+            $all[$plugin] = array_change_key_case($actions) + array_change_key_case($all[$plugin] ?? []);
         }
         return $all;
     }

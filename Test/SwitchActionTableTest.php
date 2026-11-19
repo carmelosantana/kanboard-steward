@@ -102,7 +102,7 @@ class SwitchActionTableTest extends Base
             'TaskModificationController::start', 'SubtaskStatusController::change', 'SubtaskStatusController::timer',
             'BoardAjaxController::collapse', 'BoardAjaxController::expand', 'CommentController::toggleSorting',
             'WebNotificationController::redirect', 'TaskDuplicationController::duplicate', 'ProjectViewController::updateSharing',
-            'ProjectCreationController::save'] as $pair) {
+            'ProjectCreationController::save', 'ActionCreationController::params'] as $pair) {
             $this->assertSame('write', SwitchActionTable::CORE[$pair], $pair);
         }
     }

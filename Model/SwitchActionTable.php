@@ -21,7 +21,7 @@ final class SwitchActionTable
         'ActionController::remove' => 'write',
         'ActionCreationController::create' => 'read',
         'ActionCreationController::event' => 'read',
-        'ActionCreationController::params' => 'read',
+        'ActionCreationController::params' => 'write',  // creates the action when it takes no parameters
         'ActionCreationController::save' => 'write',
         'ActivityController::user' => 'read',
         'ActivityController::project' => 'read',
