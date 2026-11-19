@@ -50,6 +50,25 @@ class Plugin extends Base
         $this->dispatcher->addSubscriber(new LoginSubscriber($this->container));
         $this->dispatcher->addSubscriber(new SwitchSubscriber($this->container));
 
+        // Every pretty route, whatever the switches say: with a feature off, FeatureGate answers its URLs with the
+        // fixed 404 (the same one an unknown token or identifier gets) instead of core's fallthrough.
+        $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
+        $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
+        $this->route->addRoute('steward/audit', 'StewardAuditController', 'index', 'Steward');
+        $this->route->addRoute('steward/branding', 'StewardBrandingController', 'show', 'Steward');
+        $this->route->addRoute('steward/branding/save', 'StewardBrandingController', 'save', 'Steward');
+        $this->route->addRoute('steward/branding/import', 'StewardBrandingController', 'import', 'Steward');
+        $this->route->addRoute('steward/project/:project_id/page', 'StewardProjectSettingsController', 'show', 'Steward');
+        $this->route->addRoute('steward/project/:project_id/page/save', 'StewardProjectSettingsController', 'save', 'Steward');
+        $this->route->addRoute('steward/project/:project_id/home', 'StewardProjectHomeController', 'show', 'Steward');
+        $this->route->addRoute('steward/test-email', 'StewardTestEmailController', 'send', 'Steward');
+        $this->route->addRoute('steward/banner', 'StewardBannerController', 'show', 'Steward');
+        $this->route->addRoute('steward/banner/save', 'StewardBannerController', 'save', 'Steward');
+        $this->route->addRoute('steward/banner/dismiss', 'StewardBannerController', 'dismiss', 'Steward');
+        $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
+        $this->route->addRoute('explore', 'StewardExploreController', 'index', 'Steward');
+        $this->route->addRoute('explore/:identifier', 'StewardExploreController', 'show', 'Steward');
+
         // Always registered so other plugins can call it; it answers '' while branding is off.
         $this->helper->register('stewardBranding', StewardBrandingHelper::class);
         // Spec §4: one swap of the text helper covers templates, notification emails and the editor preview.
@@ -64,27 +83,17 @@ class Plugin extends Base
             $this->registerMarkdownAssets();
         }
 
-        $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
-        $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
-        $this->route->addRoute('steward/audit', 'StewardAuditController', 'index', 'Steward');
         if ($this->container['stewardFeatures']->isEnabled('branding')) {
-            $this->route->addRoute('steward/branding', 'StewardBrandingController', 'show', 'Steward');
-            $this->route->addRoute('steward/branding/save', 'StewardBrandingController', 'save', 'Steward');
-            $this->route->addRoute('steward/branding/import', 'StewardBrandingController', 'import', 'Steward');
             // On app.bootstrap, after every plugin's initialize(): plugins load in directory order, so this is
             // how Steward's header/title override wins over ShadcnTheme 1.1's whichever loads last.
             $this->dispatcher->addListener('app.bootstrap', [$this, 'applyBranding'], self::LATE_BOOTSTRAP);
         }
         if ($this->container['stewardFeatures']->isEnabled('project_pages')) {
-            $this->route->addRoute('steward/project/:project_id/page', 'StewardProjectSettingsController', 'show', 'Steward');
-            $this->route->addRoute('steward/project/:project_id/page/save', 'StewardProjectSettingsController', 'save', 'Steward');
             $this->hook->on('template:project:sidebar', ['template' => 'Steward:project/sidebar']);
-            $this->route->addRoute('steward/project/:project_id/home', 'StewardProjectHomeController', 'show', 'Steward');
             // Spec §5.2: first in the view switcher; core's default view is unchanged.
             $this->hook->on('template:project-header:view-switcher-before-project-overview', ['template' => 'Steward:project_header/home_link']);
         }
         if ($this->container['stewardFeatures']->isEnabled('test_email')) {
-            $this->route->addRoute('steward/test-email', 'StewardTestEmailController', 'send', 'Steward');
             // The button sits inside core's email settings form; the form it submits renders at the page bottom.
             $this->hook->on('template:config:email', [
                 'template' => 'Steward:config/test_email',
@@ -96,20 +105,12 @@ class Plugin extends Base
             ]);
         }
         if ($this->container['stewardFeatures']->isEnabled('banner')) {
-            $this->route->addRoute('steward/banner', 'StewardBannerController', 'show', 'Steward');
-            $this->route->addRoute('steward/banner/save', 'StewardBannerController', 'save', 'Steward');
-            $this->route->addRoute('steward/banner/dismiss', 'StewardBannerController', 'dismiss', 'Steward');
             // The login page has no layout:top; the banner renders above the form (and above Steward's logo).
             $this->hook->on('template:auth:login-form:before', [
                 'template' => 'Steward:banner/announcement',
                 'callable' => fn () => ['steward_announcement' => $this->container['stewardBanner']->forViewer(Banner::LOGIN)],
             ]);
         }
-        // Whatever the switches say: with a feature off, FeatureGate answers these URLs with its 404, the same one an
-        // unknown token or identifier gets. Without the routes core would send the paths to the login page instead.
-        $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
-        $this->route->addRoute('explore', 'StewardExploreController', 'index', 'Steward');
-        $this->route->addRoute('explore/:identifier', 'StewardExploreController', 'show', 'Steward');
         $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
 
         // Switching UI (spec §2 Flow steps 1 and 4). The button shows only when start() would allow the switch.
