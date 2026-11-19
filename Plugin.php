@@ -56,6 +56,11 @@ class Plugin extends Base
             // how Steward's header/title override wins over ShadcnTheme 1.1's whichever loads last.
             $this->dispatcher->addListener('app.bootstrap', [$this, 'applyBranding'], self::LATE_BOOTSTRAP);
         }
+        if ($this->container['stewardFeatures']->isEnabled('project_pages')) {
+            $this->route->addRoute('steward/project/:project_id/page', 'StewardProjectSettingsController', 'show', 'Steward');
+            $this->route->addRoute('steward/project/:project_id/page/save', 'StewardProjectSettingsController', 'save', 'Steward');
+            $this->hook->on('template:project:sidebar', ['template' => 'Steward:project/sidebar']);
+        }
         // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
         // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so
         // the check and the gate run again last, in case one of them replaced a rule.

@@ -26,8 +26,12 @@ class AclCheck extends Base
             ['StewardBrandingController', ['show', 'save', 'import'], Role::APP_ADMIN],
             // The login page and every layout show the logo and favicon.
             ['StewardBrandingController', ['image'], Role::APP_PUBLIC],
+            // Any signed-in user gets as far as the project ACL below, which needs a project manager.
+            ['StewardProjectSettingsController', ['show', 'save'], Role::APP_USER],
         ],
-        'projectAccessMap' => [],
+        'projectAccessMap' => [
+            ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],
+        ],
     ];
 
     /** Adds every expected rule to its access map. Called once from Plugin::initialize(). */

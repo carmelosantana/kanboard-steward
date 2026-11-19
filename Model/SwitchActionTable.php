@@ -412,7 +412,7 @@ final class SwitchActionTable
         'WebNotificationController::redirect' => 'write',   // GET: marks the notification read
     ];
 
-    /** Steward's own controllers: leaving works, nothing else does (a nested start is refused by policy too). */
+    /** Steward's own controllers: leaving works, admin pages don't (a nested start is refused by policy too); project pages act as the target. */
     public const STEWARD = [
         'StewardSwitchController::back' => 'write',
         'StewardSwitchController::confirm' => 'blocked',
@@ -424,6 +424,9 @@ final class SwitchActionTable
         'StewardBrandingController::save' => 'blocked',
         'StewardBrandingController::import' => 'blocked',
         'StewardBrandingController::image' => 'read',
+        // A switched admin edits a project's page within the target's rights; saves are audited as switch.action.
+        'StewardProjectSettingsController::show' => 'read',
+        'StewardProjectSettingsController::save' => 'write',
     ];
 
     /**
