@@ -6,7 +6,8 @@ use Kanboard\Core\Base;
 /**
  * Rejects requests for a disabled feature's controllers on `app.bootstrap`, before authentication and ACL
  * middleware run, with one fixed 404 for every viewer. Kanboard dispatches any controller named in the query
- * string, so the routes a feature wires up are not the only way in.
+ * string, so the routes a feature wires up are not the only way in. When AclCheck has seen a replaced rule,
+ * every Steward action answers one fixed 403 instead, 'always' controllers included.
  */
 class FeatureGate extends Base
 {
@@ -25,18 +26,34 @@ class FeatureGate extends Base
     public const NOT_FOUND_BODY = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Not Found</title></head>'
         .'<body><h1>Not Found</h1></body></html>';
 
+    /** Same rules as NOT_FOUND_BODY. */
+    public const FORBIDDEN_BODY = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Forbidden</title></head>'
+        .'<body><h1>Forbidden</h1></body></html>';
+
     /** `app.bootstrap` listener. No-op without a router context (API, queue workers, CLI). */
     public function onBootstrap(): void
     {
         $plugin = $this->router->getPlugin();
-        if ($plugin === '' || $this->check($plugin, $this->router->getController(), $this->router->getAction())) {
+        if ($plugin === '' || strcasecmp($plugin, 'Steward') !== 0) {
             return;
         }
+        if ($this->container['stewardAcl']->isBroken()) {
+            $this->refuse(self::FORBIDDEN_BODY, 403);
+        }
+        if (! $this->check($plugin, $this->router->getController(), $this->router->getAction())) {
+            $this->refuse(self::NOT_FOUND_BODY, 404);
+        }
+    }
 
-        // BootstrapMiddleware sends these after the event; this response never gets there.
+    private function refuse(string $body, int $status): never
+    {
+        // BootstrapMiddleware::sendHeaders() runs after the event; this response never gets there.
         $this->response->withContentSecurityPolicy($this->container['cspRules']);
         $this->response->withSecurityHeaders();
-        $this->response->html(self::NOT_FOUND_BODY, 404);
+        if (ENABLE_XFRAME) {
+            $this->response->withXframe();
+        }
+        $this->response->html($body, $status);
         $this->halt();
     }
 

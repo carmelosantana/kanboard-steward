@@ -2,23 +2,34 @@
 namespace Kanboard\Plugin\Steward;
 
 use Kanboard\Core\Plugin\Base;
-use Kanboard\Core\Security\Role;
+use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 
 class Plugin extends Base
 {
+    /** Priority of the second AclCheck/FeatureGate pass: after every default-priority listener, incl. other plugins' onStartup. */
+    public const LATE_BOOTSTRAP = -1000;
+
     public function initialize(): void
     {
         $this->container['stewardFeatures'] = fn ($c) => new FeatureFlags($c);
+        $this->container[AclCheck::FLAG] = false;
+        $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
 
-        // ACL for every Steward controller, whatever the switches say; FeatureGate hides disabled ones.
-        $this->applicationAccessMap->add('StewardSettingsController', ['show', 'save'], Role::APP_ADMIN);
+        // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
+        $acl = $this->container['stewardAcl'];
+        $acl->register();
         $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
         $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
-        // app.bootstrap listeners run in registration order: AclCheck (added before this line),
-        // then FeatureGate, then SwitchGuard (added after it).
-        $this->dispatcher->addListener('app.bootstrap', [new FeatureGate($this->container), 'onBootstrap']);
+        // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard
+        // (added after these). Plugins loaded after Steward register onStartup on the same event after us, so
+        // the check and the gate run again last, in case one of them replaced a rule.
+        $gate = new FeatureGate($this->container);
+        $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap']);
+        $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap']);
+        $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap'], self::LATE_BOOTSTRAP);
+        $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap'], self::LATE_BOOTSTRAP);
 
         $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
     }

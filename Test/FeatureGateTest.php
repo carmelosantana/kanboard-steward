@@ -41,13 +41,17 @@ class FeatureGateTest extends Base
         parent::setUp();
         (new Plugin($this->container))->initialize();
         $this->container['applicationAccessMap']->add(self::FAKE, ['index'], Role::APP_ADMIN);
+        unset($this->container['response']);
+        $this->setUpResponse();
+    }
 
+    private function setUpResponse(): void
+    {
         $response = $this->getMockBuilder(\Kanboard\Core\Http\Response::class)
             ->setConstructorArgs([$this->container])->onlyMethods(['html'])->getMock();
         $response->method('html')->willReturnCallback(function ($body, $status = 200) {
             $this->sent = [(string) $body, (int) $status];
         });
-        unset($this->container['response']);
         $this->container['response'] = $response;
     }
 
@@ -89,6 +93,12 @@ class FeatureGateTest extends Base
     /** @return array{0:string,1:int} */
     private function expect404(StewardTestFeatureGate $gate): array
     {
+        return $this->expectStop($gate, 404);
+    }
+
+    /** @return array{0:string,1:int} */
+    private function expectStop(StewardTestFeatureGate $gate, int $status): array
+    {
         $this->sent = null;
         try {
             $gate->onBootstrap();
@@ -96,8 +106,86 @@ class FeatureGateTest extends Base
         } catch (StewardGateHalted) {
         }
         $this->assertNotNull($this->sent, 'gate halted without a response');
-        $this->assertSame(404, $this->sent[1]);
+        $this->assertSame($status, $this->sent[1]);
         return $this->sent;
+    }
+
+    private function headers(): array
+    {
+        return \Closure::bind(fn () => $this->httpHeaders, $this->container['response'], \Kanboard\Core\Http\Response::class)();
+    }
+
+    private function breakAcl(): void
+    {
+        $this->container['applicationAccessMap']->add('StewardSettingsController', 'show', Role::APP_PUBLIC);
+        $this->container['stewardAcl']->verify();
+    }
+
+    /** @return list<array{0:string,1:string}> every [controller, action] Steward exposes */
+    private function stewardActions(): array
+    {
+        $actions = [];
+        foreach (glob(dirname(__DIR__).'/Controller/*.php') as $file) {
+            $class = 'Kanboard\\Plugin\\Steward\\Controller\\'.basename($file, '.php');
+            foreach ((new ReflectionClass($class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+                if ($method->getDeclaringClass()->getName() === $class && ! $method->isStatic() && ! str_starts_with($method->getName(), '__')) {
+                    $actions[] = [basename($file, '.php'), $method->getName()];
+                }
+            }
+        }
+        $actions[] = [self::FAKE, 'index'];
+        return $actions;
+    }
+
+    public function testBrokenAclAnswersIdentical403ForEveryStewardAction(): void
+    {
+        foreach (SettingsSchema::FEATURES as $feature) {
+            $this->setFeature($feature, true);
+        }
+        $this->breakAcl();
+
+        $bodies = [];
+        foreach ($this->stewardActions() as [$controller, $action]) {
+            $this->route(['controller' => $controller, 'action' => $action, 'plugin' => 'Steward']);
+            foreach ([null, Role::APP_USER, Role::APP_ADMIN] as $role) {
+                $this->loginAs($role);
+                $bodies[] = $this->expectStop($this->gate('banner'), 403)[0];
+            }
+        }
+        $this->assertSame([FeatureGate::FORBIDDEN_BODY], array_values(array_unique($bodies)));
+        $this->assertStringNotContainsString('Steward', FeatureGate::FORBIDDEN_BODY);
+    }
+
+    public function testBrokenAclLeavesOtherPluginsAndCoreAlone(): void
+    {
+        $this->breakAcl();
+        $this->route(['controller' => self::FAKE, 'action' => 'index', 'plugin' => 'Pulse']);
+        $this->gate('banner')->onBootstrap();
+        $this->route(['controller' => 'DashboardController', 'action' => 'show']);
+        $this->gate('banner')->onBootstrap();
+        $this->assertNull($this->sent);
+    }
+
+    public function testFixedResponsesCarryTheCoreSecurityHeaders(): void
+    {
+        $this->assertTrue(ENABLE_XFRAME, 'test config expected to enable X-Frame-Options');
+
+        $this->setFeature('banner', false);
+        $this->route(['controller' => self::FAKE, 'action' => 'index', 'plugin' => 'Steward']);
+        $this->expect404($this->gate('banner'));
+        $headers = $this->headers();
+        $this->assertSame('DENY', $headers['X-Frame-Options'] ?? null, '404 lacks X-Frame-Options');
+        $this->assertArrayHasKey('Content-Security-Policy', $headers);
+        $this->assertSame('nosniff', $headers['X-Content-Type-Options'] ?? null);
+
+        unset($this->container['response']);
+        $this->setUpResponse();
+        $this->breakAcl();
+        $this->expectStop($this->gate('banner'), 403);
+        $headers = $this->headers();
+        $this->assertSame('DENY', $headers['X-Frame-Options'] ?? null, '403 lacks X-Frame-Options');
+        $this->assertArrayHasKey('Content-Security-Policy', $headers);
+        $this->assertSame('nosniff', $headers['X-Content-Type-Options'] ?? null);
     }
 
     public function testControllerNamesAreUnique(): void
@@ -253,6 +341,7 @@ class FeatureGateTest extends Base
             $this->container['dispatcher']->getListeners('app.bootstrap'),
             fn ($l) => is_array($l) && $l[0] instanceof FeatureGate && $l[1] === 'onBootstrap'
         );
-        $this->assertCount(1, $gates);
+        // Once in order after AclCheck, once late after other plugins' startup listeners (AclCheckTest checks order).
+        $this->assertCount(2, $gates);
     }
 }
