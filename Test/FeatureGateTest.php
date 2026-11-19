@@ -188,6 +188,10 @@ class FeatureGateTest extends Base
         $this->assertSame('DENY', $headers['X-Frame-Options'] ?? null, '404 lacks X-Frame-Options');
         $this->assertArrayHasKey('Content-Security-Policy', $headers);
         $this->assertSame('nosniff', $headers['X-Content-Type-Options'] ?? null);
+        // Same headers as a 404 sent by an action after BootstrapMiddleware (StewardPublicController), so the two
+        // can't be told apart; the URL may hold a project token, so never a Referer.
+        $this->assertArrayHasKey('P3P', $headers);
+        $this->assertSame('no-referrer', $headers['Referrer-Policy'] ?? null);
 
         unset($this->container['response']);
         $this->setUpResponse();

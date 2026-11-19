@@ -29,6 +29,8 @@ class AclCheck extends Base
             // Any signed-in user gets as far as the project ACL below, which needs a project manager.
             ['StewardProjectSettingsController', ['show', 'save'], Role::APP_USER],
             ['StewardProjectHomeController', ['show'], Role::APP_USER],
+            // Anonymous: the token in the URL is the only key (spec §5.3).
+            ['StewardPublicController', ['show'], Role::APP_PUBLIC],
         ],
         'projectAccessMap' => [
             ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],

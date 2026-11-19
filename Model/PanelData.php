@@ -7,8 +7,8 @@ use Kanboard\Model\TaskModel;
 
 /**
  * Data for the project page panels (spec §5.2), shared by Home and the public page (§5.3). Every query filters by
- * the given project id and nothing depends on who is viewing: callers check access first, and the public page
- * asks for its narrower shape through the parameters.
+ * the given project id and nothing depends on who is viewing: callers check access first. Safe for the public
+ * page: progress(), board($id, true) and publicCompleted() only; its activity comes from PublicActivity.
  */
 class PanelData extends Base
 {
@@ -90,7 +90,14 @@ class PanelData extends Base
         ], $rows);
     }
 
-    /** Core's project activity stream, newest first, with each event rendered by core's event templates. */
+    /** completed() for the public page: titles and dates only, so nothing can link to a task. */
+    public function publicCompleted(int $projectId): array
+    {
+        return array_map(fn (array $task) => ['title' => $task['title'], 'date_completed' => $task['date_completed']],
+            $this->completed($projectId));
+    }
+
+    /** Core's project activity stream, newest first, with each event rendered by core's event templates. Members only. */
     public function activity(int $projectId, int $limit = self::ACTIVITY_MAX): array
     {
         return $this->helper->projectActivity->getProjectEvents($projectId, $limit);

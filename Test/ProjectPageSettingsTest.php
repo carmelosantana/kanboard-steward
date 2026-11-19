@@ -534,6 +534,20 @@ class ProjectPageSettingsTest extends Base
         }
     }
 
+    /** Spec §5.3: beside the Public page switch, what core public access already publishes. */
+    public function testPublicPageSwitchSaysWhatCorePublicAccessExposes(): void
+    {
+        foreach ([$this->project, $this->plain] as $projectId) {
+            $body = $this->act('show', $projectId, [], true, 'GET')->body();
+            $fieldset = substr($body, strpos($body, '<legend>Public page</legend>'));
+            $fieldset = substr($fieldset, 0, strpos($fieldset, '</fieldset>'));
+            foreach (['read-only board (with assignees)', 'RSS', 'iCal', 'task pages (with comments and subtasks)', 'never shows that link'] as $needle) {
+                $this->assertStringContainsString($needle, $fieldset);
+            }
+            $this->assertLessThan(strpos($fieldset, 'read-only board'), strpos($fieldset, 'name="public"'));
+        }
+    }
+
     public function testShowEscapesStoredValues(): void
     {
         $this->assertSame([], $this->settings()->save($this->project, $this->valid([

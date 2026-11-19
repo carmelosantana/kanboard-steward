@@ -30,6 +30,7 @@ class FeatureGate extends Base
         'StewardBrandingController::*' => 'branding',
         'StewardProjectSettingsController::*' => 'project_pages',
         'StewardProjectHomeController::*' => 'project_pages',
+        'StewardPublicController::show' => 'public_pages',
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */
@@ -57,12 +58,19 @@ class FeatureGate extends Base
 
     private function refuse(string $body, int $status): never
     {
-        // BootstrapMiddleware::sendHeaders() runs after the event; this response never gets there.
+        // BootstrapMiddleware::sendHeaders() runs after the event; this response never gets there. The same headers
+        // it sends, so this 404 matches the one StewardPublicController sends for an unknown token.
         $this->response->withContentSecurityPolicy($this->container['cspRules']);
         $this->response->withSecurityHeaders();
+        $this->response->withP3P();
         if (ENABLE_XFRAME) {
             $this->response->withXframe();
         }
+        if (ENABLE_HSTS) {
+            $this->response->withStrictTransportSecurity();
+        }
+        // A public page URL holds a project token.
+        $this->response->withHeader('Referrer-Policy', 'no-referrer');
         $this->response->html($body, $status);
         $this->halt();
     }

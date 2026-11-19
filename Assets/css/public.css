@@ -1,0 +1,99 @@
+/* Steward public project page: core's light stylesheet underneath, no app chrome. */
+
+.steward-public {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5em 1em 3em;
+}
+
+.steward-public-brand {
+    margin-bottom: 1em;
+}
+
+.steward-public-logo {
+    max-height: 40px;
+    width: auto;
+}
+
+.steward-public-site {
+    font-weight: bold;
+}
+
+.steward-public-title {
+    margin: 0 0 0.25em;
+    font-size: 1.8em;
+}
+
+.steward-public-panel {
+    margin-bottom: 2em;
+}
+
+.steward-public-panel h2 {
+    margin: 0 0 0.5em;
+    padding-bottom: 0.25em;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    font-size: 1.25em;
+}
+
+.steward-public-tagline {
+    margin: 0 0 0.5em;
+    font-size: 1.1em;
+    opacity: 0.8;
+}
+
+.steward-public-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em 1.25em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.steward-public-table {
+    width: auto;
+    border-collapse: collapse;
+}
+
+.steward-public-table th,
+.steward-public-table td {
+    padding: 0.25em 1em 0.25em 0;
+    text-align: left;
+}
+
+.steward-public-board {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+}
+
+.steward-public-board-column {
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+.steward-public-board-column h3 {
+    margin: 0 0 0.5em;
+    font-size: 1em;
+}
+
+.steward-public-board-column ul,
+.steward-public-completed,
+.steward-public-activity {
+    margin: 0;
+    padding-left: 1.25em;
+}
+
+.steward-public-board-column li,
+.steward-public-completed li,
+.steward-public-activity li {
+    margin-bottom: 0.25em;
+    overflow-wrap: anywhere;
+}
+
+.steward-public-count,
+.steward-public-date,
+.steward-public-empty {
+    opacity: 0.7;
+    font-size: 0.9em;
+}

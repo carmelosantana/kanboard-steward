@@ -29,8 +29,8 @@ class StewardTextHelper extends TextHelper
     }
 
     /** Public-page rendering: #N and @user stay plain text. */
-    public function markdownPublic(string $text): string
+    public function markdownPublic(?string $text): string
     {
-        return (new StewardMarkdown($this->container, true, null, true))->text($text);
+        return (new StewardMarkdown($this->container, true, null, true))->text($text ?? '');
     }
 }

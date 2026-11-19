@@ -395,6 +395,8 @@ class MarkdownSafetyTest extends Base
         $this->assertSame('', $helper->markdown(null));
         $this->assertSame('', $helper->markdown(''));
         $this->assertSame('', $helper->markdownPublic(''));
+        // A project with no description has null there.
+        $this->assertSame('', $helper->markdownPublic(null));
     }
 
     // --- registration and the notification email ------------------------------------------------------

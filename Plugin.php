@@ -64,6 +64,9 @@ class Plugin extends Base
             // Spec §5.2: first in the view switcher; core's default view is unchanged.
             $this->hook->on('template:project-header:view-switcher-before-project-overview', ['template' => 'Steward:project_header/home_link']);
         }
+        // Whatever the switch says: with public pages off, FeatureGate answers this URL with its 404, the same one an
+        // unknown token gets. Without the route core would send the path to the login page instead.
+        $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
         // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
         // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so
         // the check and the gate run again last, in case one of them replaced a rule.
