@@ -171,8 +171,8 @@ class Plugin extends Base
     }
 
     /**
-     * Spec §3 Applying, run on app.bootstrap. Favicon links render after core's and after other plugins' (browsers
-     * prefer the later ones). The header/title override replaces ShadcnTheme 1.1's and falls back to its logo
+     * Spec §3 Applying, run on app.bootstrap. Favicon links render after other plugins' (browsers prefer the later
+     * ones) and the layout override drops core's own icon links. The header/title override replaces ShadcnTheme 1.1's and falls back to its logo
      * (spec §5.6).
      */
     public function applyBranding(): void

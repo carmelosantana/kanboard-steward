@@ -266,12 +266,85 @@ class BrandingApplyTest extends Base
         $this->assertStringContainsString('<link rel="icon" type="image/png" sizes="32x32" href="'.$u32.'">', $head);
         $this->assertStringContainsString('<link rel="apple-touch-icon" sizes="180x180" href="'.$u180.'">', $head);
 
-        // The hook renders after core's favicon links.
         $layout = $this->render('layout', ['no_layout' => true, 'content_for_layout' => '']);
-        $this->assertGreaterThan(strpos($layout, 'assets/img/favicon.png'), strpos($layout, $u32));
+        $this->assertStringContainsString($u32, $layout);
 
         $this->assertStringContainsString('K<span>B</span>', $this->render('header/title', self::HEADER_ARGS));
         $this->assertSame('', trim($this->hook('template:auth:login-form:before')));
+    }
+
+    /** Core's six icon links (layout.php, 1.2.47 and 1.2.57), relative to url->dir(). */
+    private const CORE_ICONS = [
+        'assets/img/adaptive-favicon.svg', 'assets/img/favicon.png', 'assets/img/touch-icon-iphone.png',
+        'assets/img/touch-icon-ipad.png', 'assets/img/touch-icon-iphone-retina.png', 'assets/img/touch-icon-ipad-retina.png',
+    ];
+
+    /** The app layout, Steward's explore directory (a public page) and core's login page, as full HTML. */
+    private function iconPages(): array
+    {
+        \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
+        $this->container['configModel']->save(['steward_public_pages' => '1', 'steward_explore' => '1']);
+        $pages = ['layout' => $this->render('layout', ['no_layout' => true, 'content_for_layout' => 'x'])];
+        session_remove('user');
+        foreach ([
+            'explore' => fn () => (new \Kanboard\Plugin\Steward\Controller\StewardExploreController($this->container))->index(),
+            'login' => fn () => (new \Kanboard\Controller\AuthController($this->container))->login(),
+        ] as $name => $run) {
+            unset($this->container['request'], $this->container['response']);
+            $this->container['request'] = new Request($this->container, ['REQUEST_METHOD' => 'GET'], [], [], [], []);
+            $this->container['response'] = $response = new StewardBrandingResponse($this->container);
+            $this->container['memoryCache']->flush();
+            $run();
+            $this->assertSame(200, $response->code(), $name);
+            $pages[$name] = $response->body();
+        }
+        return $pages;
+    }
+
+    /** Spec §3: browsers may pick core's SVG icon, so a Steward favicon replaces every core icon link. */
+    public function testFaviconReplacesCoreIconLinksOnEveryPage(): void
+    {
+        $this->boot(true);
+        $this->setSlots(false, true);
+        $u32 = $this->helper()->faviconUrl(32);
+        $u180 = $this->helper()->faviconUrl(180);
+
+        foreach ($this->iconPages() as $name => $html) {
+            foreach (self::CORE_ICONS as $href) {
+                $this->assertStringNotContainsString($href, $html, $name);
+            }
+            // url->dir() differs between the in-process render ('') and a request ('/').
+            $this->assertMatchesRegularExpression('#<link rel="icon" type="image/png" sizes="32x32" href="/?'.preg_quote($u32, '#').'">#', $html, $name);
+            $this->assertMatchesRegularExpression('#<link rel="apple-touch-icon" sizes="180x180" href="/?'.preg_quote($u180, '#').'">#', $html, $name);
+            $this->assertSame(1, substr_count($html, 'rel="icon"'), $name);
+            $this->assertSame(1, substr_count($html, 'rel="apple-touch-icon"'), $name);
+        }
+    }
+
+    public function testWithoutAFaviconCoreIconLinksStay(): void
+    {
+        $this->boot(true);
+        $this->setSlots(true, false);
+
+        foreach ($this->iconPages() as $name => $html) {
+            foreach (self::CORE_ICONS as $href) {
+                $this->assertMatchesRegularExpression('#href="/?'.preg_quote($href, '#').'"#', $html, $name);
+            }
+            $this->assertStringNotContainsString('slot=favicon', $html, $name);
+        }
+    }
+
+    /** If core's markup ever changes, nothing is removed: the page keeps core's links next to Steward's. */
+    public function testUnmatchedCoreMarkupIsLeftAlone(): void
+    {
+        $this->boot(true);
+        $this->setSlots(false, true);
+        $core = $this->render('kanboard:layout', ['no_layout' => true, 'content_for_layout' => 'x']);
+        $this->assertStringNotContainsString('adaptive-favicon', $this->helper()->withoutCoreIcons($core));
+
+        $changed = str_replace('type="image/svg+xml">', 'type="image/svg+xml" data-x>', $core);
+        $this->assertNotSame($core, $changed);
+        $this->assertSame($changed, $this->helper()->withoutCoreIcons($changed));
     }
 
     public function testSiteNameIsEscapedInHeaderLoginAndTitle(): void
