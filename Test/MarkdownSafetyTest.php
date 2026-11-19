@@ -222,6 +222,13 @@ class MarkdownSafetyTest extends Base
         $this->assertSame('x y', trim($this->text($html)));
     }
 
+    /** Task 17 adds an id and a trailing md-anchor link to every heading; these tests check what is inside. */
+    private function withoutAnchor(string $html): string
+    {
+        $html = (string) preg_replace('!<(h[1-6]) id="md-[a-z0-9-]+">!', '<$1>', $html);
+        return (string) preg_replace('! <a class="md-anchor" href="#md-[a-z0-9-]+">#</a>(</h[1-6]>)!', '$1', $html);
+    }
+
     // --- headings ----------------------------------------------------------------------------------------
 
     public function testHeadingWithTaskReferenceKeepsItsText(): void
@@ -229,7 +236,7 @@ class MarkdownSafetyTest extends Base
         $projectId = $this->createProject('A', false);
         $taskId = $this->createTask($projectId, 'Task');
 
-        $html = $this->parser()->text('## Notes on #'.$taskId);
+        $html = $this->withoutAnchor($this->parser()->text('## Notes on #'.$taskId));
 
         $this->assertMatchesRegularExpression('!<h2>Notes on <a href="[^"]*task_id='.$taskId.'[^"]*">#'.$taskId.'</a></h2>!', $html);
     }
@@ -239,7 +246,7 @@ class MarkdownSafetyTest extends Base
         $projectId = $this->createProject('A', false);
         $taskId = $this->createTask($projectId, 'Task');
 
-        $html = $this->parser()->text('#'.$taskId.' is done');
+        $html = $this->withoutAnchor($this->parser()->text('#'.$taskId.' is done'));
 
         $this->assertStringContainsString('#'.$taskId.' is done', $this->text($html));
         $this->assertStringContainsString('task_id='.$taskId, $html);
@@ -248,8 +255,8 @@ class MarkdownSafetyTest extends Base
 
     public function testPlainHeadingIsUnchanged(): void
     {
-        $this->assertSame('<h1>Title</h1>', $this->parser()->text('# Title'));
-        $this->assertSame('<h3>Title</h3>', $this->parser()->text('### Title ###'));
+        $this->assertSame('<h1>Title</h1>', $this->withoutAnchor($this->parser()->text('# Title')));
+        $this->assertSame('<h3>Title</h3>', $this->withoutAnchor($this->parser()->text('### Title ###')));
         $this->assertSame('<p>####### Seven</p>', $this->parser()->text('####### Seven'));
     }
 
@@ -257,7 +264,7 @@ class MarkdownSafetyTest extends Base
     {
         $taskId = $this->createTask($this->createProject('A', false), 'Task');
 
-        $html = $this->parser()->text('## #'.$taskId.' notes');
+        $html = $this->withoutAnchor($this->parser()->text('## #'.$taskId.' notes'));
 
         $this->assertMatchesRegularExpression('!^<h2><a href="[^"]*task_id='.$taskId.'[^"]*">#'.$taskId.'</a> notes</h2>$!', $html);
     }
@@ -267,7 +274,7 @@ class MarkdownSafetyTest extends Base
     {
         $taskId = $this->createTask($this->createProject('A', false), 'Task');
 
-        $html = $this->parser()->text('##'.$taskId.' x');
+        $html = $this->withoutAnchor($this->parser()->text('##'.$taskId.' x'));
 
         $this->assertMatchesRegularExpression('!^<h2><a href="[^"]*task_id='.$taskId.'[^"]*">#'.$taskId.'</a> x</h2>$!', $html);
     }
@@ -278,14 +285,14 @@ class MarkdownSafetyTest extends Base
         $projectB = $this->createProject('B', true);
         $taskA = $this->createTask($projectA, 'In A');
 
-        $matching = $this->parser(true, $this->token($projectA))->text('## #'.$taskA.' notes');
+        $matching = $this->withoutAnchor($this->parser(true, $this->token($projectA))->text('## #'.$taskA.' notes'));
         $this->assertStringContainsString('token='.$this->token($projectA), $matching);
         $this->assertSame('#'.$taskA.' notes', trim($this->text($matching)));
 
-        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->parser(true, $this->token($projectB))->text('## #'.$taskA.' notes'));
-        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->parser(true, null)->text('## #'.$taskA.' notes'));
-        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->parser(false, null, true)->text('## #'.$taskA.' notes'));
-        $this->assertSame('<h2>#'.$taskA.' x</h2>', $this->parser(false, null, true)->text('##'.$taskA.' x'));
+        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->withoutAnchor($this->parser(true, $this->token($projectB))->text('## #'.$taskA.' notes')));
+        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->withoutAnchor($this->parser(true, null)->text('## #'.$taskA.' notes')));
+        $this->assertSame('<h2>#'.$taskA.' notes</h2>', $this->withoutAnchor($this->parser(false, null, true)->text('## #'.$taskA.' notes')));
+        $this->assertSame('<h2>#'.$taskA.' x</h2>', $this->withoutAnchor($this->parser(false, null, true)->text('##'.$taskA.' x')));
     }
 
     // --- task references and mentions --------------------------------------------------------------------
