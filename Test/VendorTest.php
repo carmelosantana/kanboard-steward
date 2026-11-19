@@ -58,14 +58,10 @@ class VendorTest extends Base
         $this->assertHashes($hashes);
     }
 
-    /** Every file in the directory except README.md and the licence texts must be a listed asset. */
+    /** Every file in the directory except README.md and the known licence texts must be a listed asset. */
     public function testEveryVendoredFileIsListed(): void
     {
-        $shipped = array_diff(
-            array_map('basename', glob(self::DIR.'/*')),
-            ['README.md'],
-            array_map('basename', glob(self::DIR.'/LICENSE-*'))
-        );
+        $shipped = array_diff(array_map('basename', glob(self::DIR.'/*')), ['README.md'], self::LICENCES);
         $this->assertEqualsCanonicalizing(array_keys($this->readmeHashes()), array_values($shipped));
     }
 }

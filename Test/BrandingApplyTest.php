@@ -18,14 +18,6 @@ use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchActionTable;
 use Kanboard\Plugin\Steward\Plugin;
 
-class StewardApplyBodyOnlyLayoutHelper extends \Kanboard\Helper\LayoutHelper
-{
-    public function config($template, array $params)
-    {
-        return $this->template->render($template, $params);
-    }
-}
-
 /** Spec §3 Applying/Helper and §5.6: the logo, favicon and site name reach the pages; ShadcnTheme fallback and import. */
 class BrandingApplyTest extends Base
 {
@@ -73,7 +65,7 @@ class BrandingApplyTest extends Base
             $afterPlugins();
         }
         $this->container['dispatcher']->dispatch(new \Symfony\Contracts\EventDispatcher\Event(), 'app.bootstrap');
-        $this->container['helper']->register('layout', StewardApplyBodyOnlyLayoutHelper::class);
+        $this->container['helper']->register('layout', StewardBrandingBodyOnlyLayoutHelper::class);
     }
 
     private function pngBytes(int $width = 300, int $height = 100): string

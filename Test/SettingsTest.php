@@ -1,6 +1,7 @@
 <?php
 require_once 'tests/units/Base.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/BrandingDoubles.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
@@ -11,14 +12,6 @@ use Kanboard\Plugin\Steward\Model\SettingsSchema;
 use Kanboard\Plugin\Steward\Plugin;
 
 /** Renders only the page body: the full config layout needs a real logged-in session. */
-class StewardBodyOnlyLayoutHelper extends \Kanboard\Helper\LayoutHelper
-{
-    public function config($template, array $params)
-    {
-        return $this->template->render($template, $params);
-    }
-}
-
 class SettingsTest extends Base
 {
     private string $html = '';
@@ -30,7 +23,7 @@ class SettingsTest extends Base
         // save() writes a settings.changed audit row.
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         (new Plugin($this->container))->initialize();
-        $this->container['helper']->register('layout', StewardBodyOnlyLayoutHelper::class);
+        $this->container['helper']->register('layout', StewardBrandingBodyOnlyLayoutHelper::class);
     }
 
     private function stub(array $formValues, bool $admin = true): void

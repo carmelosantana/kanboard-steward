@@ -245,10 +245,7 @@ class ImageProcessorTest extends Base
 
     public function testZeroDimensionHeaderIsRejected(): void
     {
-        $result = $this->processFile($this->pngHeaderClaiming(0, 10));
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame([], $result['blobs']);
+        $this->assertRejected('Could not read image', $this->processFile($this->pngHeaderClaiming(0, 10)));
     }
 
     public function testFileOverTwoMegabytesIsRejected(): void

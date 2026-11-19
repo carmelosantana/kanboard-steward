@@ -5,7 +5,6 @@ require_once __DIR__.'/support/BrandingDoubles.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
-use Kanboard\Core\Http\Route;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Controller\StewardExploreController;
 use Kanboard\Plugin\Steward\Controller\StewardPublicController;
@@ -33,16 +32,9 @@ class ExploreTest extends Base
         parent::setUp();
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
-        $on = $this->getName(false) === 'testRoutesAreRegisteredWithTheFeaturesOff' ? '0' : '1';
-        $this->container['configModel']->save(['steward_public_pages' => $on, 'steward_explore' => $on]);
+        $this->container['configModel']->save(['steward_public_pages' => '1', 'steward_explore' => '1']);
         $this->container['memoryCache']->flush();
         $this->container['route']->enable();
-        if ($this->getName(false) === 'testCoreRoutesStillReachCore') {
-            // As in production: core's RouteProvider adds its routes before any plugin loads.
-            foreach (self::coreRoutes() as [$path, $controller, $action]) {
-                $this->container['route']->addRoute($path, $controller, $action);
-            }
-        }
         (new Plugin($this->container))->initialize();
 
         // Listed and shown, created out of name order.
@@ -144,54 +136,11 @@ class ExploreTest extends Base
             $this->assertSame('explore', (new FeatureGate($this->container))->featureFor('StewardExploreController', $action));
             $this->assertSame('read', SwitchActionTable::STEWARD['StewardExploreController::'.$action]);
         }
-        $this->assertRoutes();
-    }
-
-    /** Registered with the switches off too, so FeatureGate's 404 answers there instead of core's login redirect. */
-    public function testRoutesAreRegisteredWithTheFeaturesOff(): void
-    {
-        $this->assertFalse($this->container['stewardFeatures']->isEnabled('explore'));
-        $this->assertRoutes();
-    }
-
-    private function assertRoutes(): void
-    {
+        // With the features off too: RoutesTest.
         $route = $this->container['route'];
         $this->assertSame(['controller' => 'StewardExploreController', 'action' => 'index', 'plugin' => 'Steward'], $route->findRoute('explore'));
         $this->assertSame(['controller' => 'StewardExploreController', 'action' => 'show', 'plugin' => 'Steward'], $route->findRoute('explore/Alpha'));
         $this->assertSame('Alpha', $this->container['request']->getStringParam('identifier'));
-    }
-
-    /**
-     * Core's routes, read from its RouteProvider (tests run without URL rewriting, so core never adds them).
-     *
-     * @return list<array{0:string,1:string,2:string}>
-     */
-    private static function coreRoutes(): array
-    {
-        preg_match_all("/->addRoute\\('([^']+)', '([^']+)', '([^']+)'\\)/", file_get_contents(ROOT_DIR.'/app/ServiceProvider/RouteProvider.php'), $m, PREG_SET_ORDER);
-        return array_map(fn ($row) => array_slice($row, 1), $m);
-    }
-
-    /** Decision 18: core's /p/:id and /projects (and every other core path) resolve exactly as without Steward. */
-    public function testCoreRoutesStillReachCore(): void
-    {
-        $routes = self::coreRoutes();
-        $this->assertGreaterThan(50, count($routes));
-        $coreOnly = new Route($this->container);
-        $coreOnly->enable();
-        foreach ($routes as [$path, $controller, $action]) {
-            $coreOnly->addRoute($path, $controller, $action);
-        }
-        $live = $this->container['route'];
-        $this->assertSame(['controller' => 'ProjectViewController', 'action' => 'show', 'plugin' => ''], $live->findRoute('p/1'));
-        $this->assertSame(['controller' => 'ProjectListController', 'action' => 'show', 'plugin' => ''], $live->findRoute('projects'));
-        foreach ($routes as [$path]) {
-            $concrete = preg_replace('#:[a-z_]+#', '1', $path);
-            $this->assertSame($coreOnly->findRoute($concrete), $live->findRoute($concrete), $concrete);
-        }
-        $this->assertSame('StewardExploreController', $live->findRoute('explore')['controller']);
-        $this->assertSame('StewardExploreController', $live->findRoute('explore/ALPHA')['controller']);
     }
 
     // --- directory --------------------------------------------------------------------------------------

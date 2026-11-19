@@ -187,7 +187,6 @@ class MarkdownFeaturesTest extends Base
         $this->assertSame('<pre><code class="language-mermaidx">A</code></pre>', $this->parser()->text("```mermaidx\nA\n```"));
     }
 
-    /** @return list<string> */
     /** No href/src outside the heading anchor's own fragment link. */
     private function assertNoActiveUrl(string $html): void
     {
@@ -197,6 +196,7 @@ class MarkdownFeaturesTest extends Base
         $this->assertStringNotContainsString('data:', $html);
     }
 
+    /** @return list<string> */
     private function ids(string $html): array
     {
         preg_match_all('/<h[1-6] id="([^"]*)"/', $html, $m);

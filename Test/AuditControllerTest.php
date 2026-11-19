@@ -1,6 +1,7 @@
 <?php
 require_once 'tests/units/Base.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/BrandingDoubles.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
@@ -17,14 +18,6 @@ use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Plugin;
 
 /** Renders only the page body: the full config layout needs a real logged-in session. */
-class StewardAuditBodyOnlyLayoutHelper extends \Kanboard\Helper\LayoutHelper
-{
-    public function config($template, array $params)
-    {
-        return $this->template->render($template, $params);
-    }
-}
-
 /** Swallows log lines so expected errors never reach stderr. */
 class StewardAuditPageLogSink extends \Kanboard\Core\Log\Base
 {
@@ -46,7 +39,7 @@ class AuditControllerTest extends Base
         parent::setUp();
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         (new Plugin($this->container))->initialize();
-        $this->container['helper']->register('layout', StewardAuditBodyOnlyLayoutHelper::class);
+        $this->container['helper']->register('layout', StewardBrandingBodyOnlyLayoutHelper::class);
 
         $logger = new Logger();
         $logger->setLogger(new StewardAuditPageLogSink());
