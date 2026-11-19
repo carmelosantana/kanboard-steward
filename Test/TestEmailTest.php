@@ -15,6 +15,7 @@ use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchActionTable;
 use Kanboard\Plugin\Steward\Plugin;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class StewardTestEmailLogSink extends \Kanboard\Core\Log\Base
 {
@@ -72,6 +73,13 @@ class TestEmailTest extends Base
         $this->container['memoryCache']->flush();
         (new Plugin($this->container))->initialize();
         $this->container['helper']->register('layout', StewardBrandingBodyOnlyLayoutHelper::class);
+        // Core 1.2.57's test Base stubs the whole client (no transports); use a real one, as 1.2.47's Base does.
+        $client = $this->getMockBuilder(\Kanboard\Core\Mail\Client::class)
+            ->setConstructorArgs([$this->container])
+            ->onlyMethods(['send'])
+            ->getMock();
+        unset($this->container['emailClient']);
+        $this->container['emailClient'] = $client;
         $this->container['emailClient']->setTransport('stewardfake', StewardFakeTransport::class);
         $this->container['emailClient']->setTransport('stewardthrow', StewardThrowingTransport::class);
         $this->container['memoryCache']->flush();
@@ -303,6 +311,7 @@ class TestEmailTest extends Base
     }
 
     /** @dataProvider loggedShapes */
+    #[DataProvider('loggedShapes')]
     public function testLoggedFailureNeverCarriesTheSecret(string $message, array $gone, string $kept): void
     {
         StewardThrowingTransport::$message = $message;

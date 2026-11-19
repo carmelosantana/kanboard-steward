@@ -3,6 +3,7 @@ namespace Kanboard\Plugin\Steward\Model;
 
 use Kanboard\Core\Base;
 use Kanboard\Core\Security\Role;
+use Throwable;
 
 /**
  * Guards every request of a switched session (spec §2 "Guards on every request while switched"). An
@@ -113,10 +114,18 @@ class SwitchGuard extends Base
         return ! empty($admin) && (int) $admin['is_active'] === 1 && $admin['role'] === Role::APP_ADMIN;
     }
 
-    /** Core's own session check (DatabaseAuth::isValidSession): the target exists, is active, same role. */
+    /**
+     * Core's own session check (DatabaseAuth::isValidSession), run before core's: the target exists, is active,
+     * has the same role and, on 1.2.57, the same password as when the session was written. Fails closed.
+     */
     private function targetUnchanged(): bool
     {
-        return $this->userModel->isValidSession((int) $this->userSession->getId(), (string) $this->userSession->getRole());
+        try {
+            return (bool) $this->authenticationManager->getProvider('Database')->isValidSession();
+        } catch (Throwable $e) {
+            $this->logger->error('Steward: session check failed: '.$e->getMessage());
+            return false;
+        }
     }
 
     private function isLeaving(string $plugin, string $controller, string $action): bool

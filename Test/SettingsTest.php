@@ -10,6 +10,8 @@ use Kanboard\Plugin\Steward\Controller\StewardSettingsController;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\SettingsSchema;
 use Kanboard\Plugin\Steward\Plugin;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class SettingsTest extends Base
 {
@@ -129,6 +131,8 @@ class SettingsTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testKillSwitchConstant(): void
     {
         $this->assertFalse(REVERSE_PROXY_AUTH);
@@ -145,6 +149,8 @@ class SettingsTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testKillSwitchDefinedFalseLeavesSwitchingOn(): void
     {
         define('STEWARD_DISABLE_SWITCHING', false);

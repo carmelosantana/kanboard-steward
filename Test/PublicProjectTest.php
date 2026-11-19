@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/TestName.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
@@ -22,6 +23,8 @@ use Kanboard\Plugin\Steward\Plugin;
  */
 class PublicProjectTest extends Base
 {
+    use StewardTestName;
+
     private const ADMIN = 1;
 
     private const ACTOR_USERNAME = 'zzactorloginzz';
@@ -48,7 +51,7 @@ class PublicProjectTest extends Base
         parent::setUp();
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
-        $on = $this->getName(false) === 'testRouteIsRegisteredWithTheFeatureOff' ? '0' : '1';
+        $on = $this->currentTestName() === 'testRouteIsRegisteredWithTheFeatureOff' ? '0' : '1';
         $this->container['configModel']->save(['steward_public_pages' => $on, 'steward_markdown' => '1']);
         $this->container['memoryCache']->flush();
         $this->container['route']->enable();

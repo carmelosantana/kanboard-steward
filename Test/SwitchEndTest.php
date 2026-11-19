@@ -22,6 +22,9 @@ use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Plugin;
 use Symfony\Contracts\EventDispatcher\Event;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /** Collects log lines so expected errors never reach stderr. */
 class StewardSwitchEndLogSink extends \Kanboard\Core\Log\Base
@@ -351,6 +354,7 @@ class SwitchEndTest extends Base
     }
 
     /** @dataProvider guardReasons */
+    #[DataProvider('guardReasons')]
     public function testGuardReasonsLogOutWithoutAWayBack(string $reason, string $event): void
     {
         $switchId = $this->switchToAna();
@@ -483,6 +487,8 @@ class SwitchEndTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testRealSessionSwitchBackAndSignIn(): void
     {
         $this->assertSame('db', SESSION_HANDLER);
@@ -490,6 +496,8 @@ class SwitchEndTest extends Base
         $this->container['sessionManager'] = new SessionManager($this->container);
         ini_set('session.use_cookies', '0');
         ini_set('session.cache_limiter', '');
+        // Core 1.2.57's SessionManager::open() sets this, and its handler reads nothing else; 1.2.47 doesn't mind.
+        ini_set('session.serialize_handler', 'php_serialize');
         session_set_save_handler(new SessionHandler($this->container['db']), true);
         session_start();
         $this->loginAs(self::ADMIN);

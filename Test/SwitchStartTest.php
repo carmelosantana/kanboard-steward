@@ -20,6 +20,9 @@ use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchPolicy;
 use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Plugin;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /** Collects log lines so expected errors never reach stderr. */
 class StewardSwitchStartLogSink extends \Kanboard\Core\Log\Base
@@ -437,6 +440,7 @@ class SwitchStartTest extends Base
      *
      * @dataProvider authorisationReasons
      */
+    #[DataProvider('authorisationReasons')]
     public function testAuthorisationRefusalsGoToTheUserListEvenForAnExistingTarget(string $reason): void
     {
         match ($reason) {
@@ -570,6 +574,8 @@ class SwitchStartTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testPreSwitchSessionIdIsDestroyedInTheDatabaseSessionStore(): void
     {
         $this->assertSame('db', SESSION_HANDLER);
@@ -597,8 +603,9 @@ class SwitchStartTest extends Base
     private function openDbSession(?string $id = null): void
     {
         ini_set('session.use_cookies', '0');
-        ini_set('session.use_only_cookies', '0');
         ini_set('session.cache_limiter', '');
+        // Core 1.2.57's SessionManager::open() sets this, and its handler reads nothing else; 1.2.47 doesn't mind.
+        ini_set('session.serialize_handler', 'php_serialize');
         session_set_save_handler(new SessionHandler($this->container['db']), true);
         if ($id !== null) {
             session_id($id);

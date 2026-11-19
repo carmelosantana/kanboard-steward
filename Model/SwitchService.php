@@ -202,6 +202,11 @@ class SwitchService extends Base
      */
     public function writeUser(array $user): void
     {
+        // Core 1.2.57 stores a password fingerprint that its session check compares; 1.2.47 has neither.
+        $fingerprint = method_exists($this->userSession, 'getCredentialsFingerprint')
+            ? hash('sha256', isset($user['password']) ? $user['password'] : '')
+            : null;
+
         foreach (['password', 'is_admin', 'is_project_admin', 'twofactor_secret'] as $column) {
             if (isset($user[$column])) {
                 unset($user[$column]);
@@ -209,6 +214,9 @@ class SwitchService extends Base
         }
 
         $user['id'] = (int) $user['id'];
+        if ($fingerprint !== null) {
+            $user['credentials_fingerprint'] = $fingerprint;
+        }
         $user['is_ldap_user'] = isset($user['is_ldap_user']) ? (bool) $user['is_ldap_user'] : false;
         $user['twofactor_activated'] = isset($user['twofactor_activated']) ? (bool) $user['twofactor_activated'] : false;
 

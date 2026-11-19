@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/TestName.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
@@ -26,6 +27,8 @@ class StewardHomeBodyOnlyLayoutHelper extends \Kanboard\Helper\LayoutHelper
 
 class ProjectHomeTest extends Base
 {
+    use StewardTestName;
+
     private const ADMIN = 1;
 
     private int $viewer;
@@ -39,7 +42,7 @@ class ProjectHomeTest extends Base
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
         // Plugin::initialize() wires the view-switcher hook only while the feature is on.
-        $on = $this->getName(false) !== 'testHomeLinkNeedsTheFeatureAtStartup';
+        $on = $this->currentTestName() !== 'testHomeLinkNeedsTheFeatureAtStartup';
         $this->container['configModel']->save(['steward_project_pages' => $on ? '1' : '0', 'steward_markdown' => '1']);
         $this->container['memoryCache']->flush();
         (new Plugin($this->container))->initialize();

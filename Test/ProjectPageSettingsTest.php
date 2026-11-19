@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/TestName.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
@@ -25,6 +26,8 @@ class StewardProjectBodyOnlyLayoutHelper extends \Kanboard\Helper\LayoutHelper
 
 class ProjectPageSettingsTest extends Base
 {
+    use StewardTestName;
+
     private const ADMIN = 1;
 
     private int $manager;
@@ -41,7 +44,7 @@ class ProjectPageSettingsTest extends Base
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
         // Plugin::initialize() wires the sidebar hook only while the feature is on.
-        $on = $this->getName(false) !== 'testSidebarLinkNeedsTheFeatureAtStartup';
+        $on = $this->currentTestName() !== 'testSidebarLinkNeedsTheFeatureAtStartup';
         $this->container['configModel']->save(['steward_project_pages' => $on ? '1' : '0']);
         $this->container['memoryCache']->flush();
         (new Plugin($this->container))->initialize();
@@ -295,15 +298,19 @@ class ProjectPageSettingsTest extends Base
         $this->assertSame([], $this->settings()->save($this->project, $this->valid()));
         $before = $this->settings()->get($this->project);
 
-        // Core's JSON-RPC saveProjectMetadata, called by a project viewer.
+        // Core's JSON-RPC saveProjectMetadata, called by a project viewer. Core 1.2.47 lets it write; 1.2.57 refuses
+        // it. Either way Steward's settings don't live there.
         $this->loginAs($this->viewer);
         $api = new \Kanboard\Api\Procedure\ProjectMetaDataProcedure($this->container);
-        $api->saveProjectMetadata($this->project, [
-            'steward_public' => '1', 'steward_listed' => '1', 'steward_show_names' => '1',
-            'steward_tagline' => 'Hijacked',
-            'steward_links' => '[{"label":"x","url":"javascript:alert(1)"}]',
-            'steward_panels' => '["files"]',
-        ]);
+        try {
+            $api->saveProjectMetadata($this->project, [
+                'steward_public' => '1', 'steward_listed' => '1', 'steward_show_names' => '1',
+                'steward_tagline' => 'Hijacked',
+                'steward_links' => '[{"label":"x","url":"javascript:alert(1)"}]',
+                'steward_panels' => '["files"]',
+            ]);
+        } catch (\JsonRPC\Exception\AccessDeniedException $e) {
+        }
 
         $this->assertSame($before, $this->settings()->get($this->project));
     }

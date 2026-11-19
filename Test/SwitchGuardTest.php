@@ -23,6 +23,9 @@ use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Plugin;
 use SimpleQueue\Job;
 use Symfony\Contracts\EventDispatcher\Event;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class StewardGuardLogSink extends \Kanboard\Core\Log\Base
 {
@@ -148,7 +151,8 @@ class SwitchGuardTest extends Base
     private function route(string $method, array $get, array $post = [], array $server = [], string $json = ''): void
     {
         unset($this->container['request'], $this->container['router']);
-        $request = new StewardGuardJsonRequest($this->container, $server + [
+        // The board sends JSON with its content type; core 1.2.57's getJson() reads nothing without it.
+        $request = new StewardGuardJsonRequest($this->container, $server + ($json !== '' ? ['CONTENT_TYPE' => 'application/json'] : []) + [
             'REQUEST_METHOD' => $method,
             'REMOTE_ADDR' => '203.0.113.9',
             'HTTP_USER_AGENT' => 'SwitchGuardTest/1.0',
@@ -310,6 +314,17 @@ class SwitchGuardTest extends Base
         $details = json_decode($this->auditRows('switch.action')[0]['details'], true);
         $this->assertSame($this->task, $details['task_id']);
         $this->assertSame($this->project, $details['project_id']);
+    }
+
+    /** The audit reads the body exactly as core does: without a JSON content type 1.2.57 reads no task, 1.2.47 does. */
+    public function testBoardMoveReadsTheBodyAsCoreDoes(): void
+    {
+        $this->route('POST', ['controller' => 'BoardAjaxController', 'action' => 'save', 'project_id' => (string) $this->project],
+            [], ['CONTENT_TYPE' => 'text/plain'], json_encode(['task_id' => $this->task]));
+        $coreReads = $this->container['request']->getJson()['task_id'] ?? null;
+        $this->assertFalse($this->runGuard());
+        $details = json_decode($this->auditRows('switch.action')[0]['details'], true);
+        $this->assertSame($coreReads, $details['task_id']);
     }
 
     /** Core moves the task named in the JSON body: a task_id in the query must not change what is audited. */
@@ -483,6 +498,7 @@ class SwitchGuardTest extends Base
     }
 
     /** @dataProvider adminChanges */
+    #[DataProvider('adminChanges')]
     public function testChangedAdminIsLoggedOut(array $change): void
     {
         if ($change === []) {
@@ -507,6 +523,7 @@ class SwitchGuardTest extends Base
      *
      * @dataProvider targetChanges
      */
+    #[DataProvider('targetChanges')]
     public function testChangedTargetEndsTheSwitch(array $change): void
     {
         if ($change === []) {
@@ -517,6 +534,28 @@ class SwitchGuardTest extends Base
         $this->route('GET', ['controller' => 'BoardViewController', 'action' => 'show', 'project_id' => (string) $this->project]);
         $this->assertFalse($this->runGuard());
         $this->assertLoggedOut('switch.revoked', 'target_changed');
+    }
+
+    /**
+     * The guard judges the target's session the way core's database provider does: on 1.2.57 a password change
+     * invalidates it (core would wipe the session), on 1.2.47 it doesn't. An unchanged target always passes.
+     */
+    public function testTargetCheckFollowsCoresSessionCheck(): void
+    {
+        $core = fn () => $this->container['authenticationManager']->getProvider('Database')->isValidSession();
+        $this->route('GET', ['controller' => 'BoardViewController', 'action' => 'show', 'project_id' => (string) $this->project]);
+        $this->assertTrue($core());
+        $this->assertFalse($this->runGuard());
+        $this->assertTrue($this->switching()->isSwitched());
+
+        $this->container['userModel']->update(['id' => $this->ana, 'password' => 'a-new-password']);
+        $stillValid = $core();
+        $this->assertFalse($this->runGuard());
+        if ($stillValid) {
+            $this->assertTrue($this->switching()->isSwitched());
+        } else {
+            $this->assertLoggedOut('switch.revoked', 'target_changed');
+        }
     }
 
     public function testIdleSixtyOneMinutesExpires(): void
@@ -575,6 +614,8 @@ class SwitchGuardTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testKillSwitchEndsTheSwitchOnTheNextRequest(): void
     {
         define('STEWARD_DISABLE_SWITCHING', true);

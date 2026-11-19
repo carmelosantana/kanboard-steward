@@ -3,6 +3,7 @@ require_once 'tests/units/Base.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Model\ImageProcessor;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ImageProcessorTest extends Base
 {
@@ -96,6 +97,7 @@ class ImageProcessorTest extends Base
     }
 
     /** @dataProvider acceptedFormats */
+    #[DataProvider('acceptedFormats')]
     public function testRasterFormatsAreReEncodedToPngAtEveryTarget(string $format): void
     {
         $result = $this->processFile($this->generate($format, 40, 20));
@@ -143,6 +145,7 @@ class ImageProcessorTest extends Base
     }
 
     /** @dataProvider alphaFormats */
+    #[DataProvider('alphaFormats')]
     public function testTransparencyIsPreserved(string $format): void
     {
         $result = $this->processFile($this->generate($format, 40, 20), ['logo' => [512, 128, 'fit']]);
@@ -227,6 +230,7 @@ class ImageProcessorTest extends Base
     }
 
     /** @dataProvider oversizedDimensions */
+    #[DataProvider('oversizedDimensions')]
     public function testDimensionLimits(int $width, int $height): void
     {
         $this->assertRejected(

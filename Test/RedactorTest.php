@@ -3,6 +3,7 @@ require_once 'tests/units/Base.php';
 
 use Kanboard\Plugin\Steward\Model\Redactor;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class RedactorTest extends TestCase
 {
@@ -46,6 +47,7 @@ class RedactorTest extends TestCase
     }
 
     /** @dataProvider shapes */
+    #[DataProvider('shapes')]
     public function testShapes(string $message, array $gone, array $kept): void
     {
         $out = (new Redactor())->redact($message);
@@ -75,6 +77,7 @@ class RedactorTest extends TestCase
      *
      * @dataProvider longQuotedValues
      */
+    #[DataProvider('longQuotedValues')]
     public function testLongQuotedValuesAreRedactedWithoutAPcreError(int $size, string $fill, string $quote): void
     {
         $secret = 'SECRETSTART'.str_repeat($fill, intdiv($size, strlen($fill))).'SECRETEND';

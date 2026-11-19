@@ -3,6 +3,8 @@ require_once 'tests/units/Base.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Plugin;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
  * REVERSE_PROXY_AUTH is defined by core's constants.php from the environment when Base.php loads, so the
@@ -25,6 +27,8 @@ class ReverseProxySwitchingTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testReverseProxyDisablesSwitching(): void
     {
         $this->assertTrue(REVERSE_PROXY_AUTH);
@@ -41,6 +45,8 @@ class ReverseProxySwitchingTest extends Base
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testReverseProxyHidesTheSwitchButton(): void
     {
         $this->assertTrue(REVERSE_PROXY_AUTH);

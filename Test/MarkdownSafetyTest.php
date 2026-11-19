@@ -9,6 +9,7 @@ use Kanboard\Helper\TextHelper;
 use Kanboard\Plugin\Steward\Core\StewardMarkdown;
 use Kanboard\Plugin\Steward\Helper\StewardTextHelper;
 use Kanboard\Plugin\Steward\Plugin;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /** Collects log lines so an expected error never reaches stderr. */
 class StewardMarkdownLogCollector extends \Kanboard\Core\Log\Base
@@ -167,6 +168,7 @@ class MarkdownSafetyTest extends Base
     }
 
     /** @dataProvider unsafeUrls */
+    #[DataProvider('unsafeUrls')]
     public function testUnsafeLinkBecomesItsText(string $url): void
     {
         $html = $this->parser()->text('Go [click **here**]('.$url.') now');
@@ -179,6 +181,7 @@ class MarkdownSafetyTest extends Base
     }
 
     /** @dataProvider unsafeUrls */
+    #[DataProvider('unsafeUrls')]
     public function testUnsafeReferenceLinkBecomesItsText(string $url): void
     {
         $html = $this->parser()->text("See [docs][1].\n\n[1]: ".ltrim($url, " "));
@@ -188,6 +191,7 @@ class MarkdownSafetyTest extends Base
     }
 
     /** @dataProvider unsafeUrls */
+    #[DataProvider('unsafeUrls')]
     public function testUnsafeImageBecomesItsAltText(string $url): void
     {
         $html = $this->parser()->text('Look ![a <b>cat</b>]('.$url.') here');
@@ -207,6 +211,7 @@ class MarkdownSafetyTest extends Base
     }
 
     /** @dataProvider safeUrls */
+    #[DataProvider('safeUrls')]
     public function testSafeLinkIsKept(string $url, string $expected): void
     {
         $html = $this->parser()->text('[click]('.$url.')');
@@ -218,6 +223,7 @@ class MarkdownSafetyTest extends Base
     }
 
     /** @dataProvider safeUrls */
+    #[DataProvider('safeUrls')]
     public function testSafeImageIsKept(string $url, string $expected): void
     {
         $html = $this->parser()->text('![pic]('.$url.')');
