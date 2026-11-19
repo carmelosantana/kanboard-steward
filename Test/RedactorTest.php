@@ -32,6 +32,8 @@ class RedactorTest extends TestCase
             'json double-quoted' => ['{"password":"x y","user":"bob"}', ['x y', 'bob'], ['"password=[redacted]', '"user=[redacted]']],
             'json single-quoted' => ["{'token': 'abc def'}", ['abc', 'def'], ["'token=[redacted]"]],
             'json authorization' => ['{"Authorization":"Bearer abc.def"}', ['Bearer', 'abc.def'], ['"Authorization=[redacted]']],
+            'escaped double quote' => ['{"password":"a\\"b c","user":"bob"}', ['a\\"b', 'b c', 'bob'], ['"password=[redacted]', '"user=[redacted]']],
+            'escaped single quote' => ["{'token': 'a\\'b c'}", ["a\\'b", 'b c'], ["'token=[redacted]"]],
             'unterminated quote' => ["password: \"a b c\nnext", ['a b c', 'b c'], ['password=[redacted]', 'next']],
             'camelCase compound' => ['authToken=xyz123', ['xyz123'], ['authToken=[redacted]']],
             'PascalCase compound' => ['ClientSecret: xyz123', ['xyz123'], ['ClientSecret=[redacted]']],
