@@ -25,8 +25,8 @@ class SwitchPolicy extends Base
             ! empty($actor['twofactor_activated']) && ! $actorPostAuthValidated => '2fa_pending',
             $target === null => 'not_found',
             empty($target['is_active']) => 'inactive',
+            (int) ($target['id'] ?? 0) === (int) ($actor['id'] ?? 0) => 'self',
             ($target['role'] ?? null) === Role::APP_ADMIN => 'target_admin',
-            (int) $target['id'] === (int) ($actor['id'] ?? 0) => 'self',
             default => null,
         };
     }

@@ -5,11 +5,18 @@ use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Http\Router;
+use Kanboard\Core\Log\Logger;
 use Kanboard\Core\Security\Role;
 use Kanboard\Middleware\ApplicationAuthorizationMiddleware;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SettingsSchema;
 use Kanboard\Plugin\Steward\Plugin;
+
+/** Swallows log lines so the expected ACL-conflict errors never reach stderr. */
+class StewardGateLogSink extends \Kanboard\Core\Log\Base
+{
+    public function log($level, $message, array $context = []): void {}
+}
 
 final class StewardGateHalted extends \RuntimeException {}
 
@@ -40,6 +47,10 @@ class FeatureGateTest extends Base
     {
         parent::setUp();
         (new Plugin($this->container))->initialize();
+        $logger = new Logger();
+        $logger->setLogger(new StewardGateLogSink());
+        unset($this->container['logger']);
+        $this->container['logger'] = $logger;
         $this->container['applicationAccessMap']->add(self::FAKE, ['index'], Role::APP_ADMIN);
         unset($this->container['response']);
         $this->setUpResponse();

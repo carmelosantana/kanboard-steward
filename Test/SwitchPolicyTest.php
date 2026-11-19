@@ -133,13 +133,24 @@ class SwitchPolicyTest extends Base
         $this->assertNull($this->policy->canStart($this->admin(), $this->target(['role' => Role::APP_MANAGER]), false, false));
     }
 
+    /** The realistic self-switch: the admin's own row is both actor and target, so `self` must beat `target_admin`. */
     public function testSelf(): void
     {
-        $this->assertSame('self', $this->policy->canStart($this->admin(['id' => 2]), $this->target(['id' => 2, 'role' => Role::APP_USER]), false, false));
+        $this->assertSame('self', $this->policy->canStart($this->admin(), $this->admin(), false, false));
     }
 
     public function testSelfComparesIdsLoosely(): void
     {
-        $this->assertSame('self', $this->policy->canStart($this->admin(['id' => '2']), $this->target(['id' => 2]), false, false));
+        $this->assertSame('self', $this->policy->canStart($this->admin(['id' => '1']), $this->admin(['id' => 1]), false, false));
+    }
+
+    public function testInactiveBeatsSelf(): void
+    {
+        $this->assertSame('inactive', $this->policy->canStart($this->admin(), $this->admin(['is_active' => 0]), false, false));
+    }
+
+    public function testTargetWithoutIdIsNotSelf(): void
+    {
+        $this->assertSame('target_admin', $this->policy->canStart($this->admin(), ['role' => Role::APP_ADMIN, 'is_active' => 1], false, false));
     }
 }

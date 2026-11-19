@@ -2,6 +2,7 @@
 require_once 'tests/units/Base.php';
 
 use KanboardTests\units\Base;
+use Kanboard\Core\Log\Logger;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
@@ -38,7 +39,10 @@ class AclCheckTest extends Base
         parent::setUp();
         (new Plugin($this->container))->initialize();
         $this->log = new StewardTestLogCollector();
-        $this->container['logger']->setLogger($this->log);
+        $logger = new Logger();
+        $logger->setLogger($this->log);
+        unset($this->container['logger']);
+        $this->container['logger'] = $logger;
     }
 
     private function acl(): AclCheck
