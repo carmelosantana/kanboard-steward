@@ -39,6 +39,7 @@ class Plugin extends Base
             } catch (FrozenServiceException $e) {
                 $this->logger->error('Steward: text helper already in use before Steward loaded; safer Markdown is off');
             }
+            $this->registerMarkdownAssets();
         }
 
         // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
@@ -88,6 +89,19 @@ class Plugin extends Base
             'template' => 'Steward:header/switch_back',
             'callable' => fn () => ['steward_switched' => $switching()->isSwitched()],
         ]);
+    }
+
+    /**
+     * Spec §4 client side: highlight.js, its light theme and Steward's Markdown script and styles, on every page
+     * that renders core's layout hooks (core's public board does too). Mermaid is not listed: steward-markdown.js
+     * loads it only on a page that holds a diagram. highlight.js comes first: both are deferred, so they run in order.
+     */
+    public function registerMarkdownAssets(): void
+    {
+        $this->hook->on('template:layout:css', ['template' => 'plugins/Steward/Assets/vendor/highlight-github.css']);
+        $this->hook->on('template:layout:css', ['template' => 'plugins/Steward/Assets/css/markdown.css']);
+        $this->hook->on('template:layout:js', ['template' => 'plugins/Steward/Assets/vendor/highlight.min.js']);
+        $this->hook->on('template:layout:js', ['template' => 'plugins/Steward/Assets/js/steward-markdown.js']);
     }
 
     /**

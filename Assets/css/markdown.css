@@ -1,0 +1,54 @@
+/* Steward — Markdown additions (spec §4): heading anchors, task lists, highlighted code, Mermaid diagrams. */
+
+/* Heading anchor: shown on hover, or while the anchor has keyboard focus. Faded rather than hidden so it stays focusable. */
+.markdown .md-anchor {
+    opacity: 0;
+    margin-left: 0.25em;
+    font-weight: normal;
+    text-decoration: none;
+    color: inherit;
+}
+
+.markdown :is(h1, h2, h3, h4, h5, h6):hover .md-anchor,
+.markdown :is(h1, h2, h3, h4, h5, h6):focus-within .md-anchor {
+    opacity: 0.6;
+}
+
+.markdown .md-anchor:hover,
+.markdown .md-anchor:focus {
+    opacity: 1;
+}
+
+/* Task lists: the checkbox stands in for the bullet. */
+.markdown li.task-list-item {
+    list-style: none;
+}
+
+.markdown li.task-list-item > input[type="checkbox"],
+.markdown li.task-list-item > p > input[type="checkbox"]:first-child {
+    margin: 0 0.35em 0 -1.4em;
+    vertical-align: middle;
+}
+
+/*
+ * highlight.js: only the light GitHub theme ships, so a highlighted block keeps that theme's own background even
+ * when a dark theme darkens core's <pre>; the code element fills the frame instead of sitting inside its padding.
+ */
+.markdown pre:has(> code.hljs) {
+    padding: 0;
+}
+
+.markdown pre > code.hljs {
+    padding: 10px;
+    border-radius: inherit;
+}
+
+/* Mermaid: no code frame around a diagram (nor around its source while Mermaid loads). */
+.markdown pre.mermaid {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    text-align: center;
+    color: inherit;
+}
