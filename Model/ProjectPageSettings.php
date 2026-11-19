@@ -4,9 +4,11 @@ namespace Kanboard\Plugin\Steward\Model;
 use Kanboard\Core\Base;
 
 /**
- * Per-project page settings (spec §5.1–5.4), one `project_has_metadata` row per value under a `steward_` key;
- * lists are JSON. get() fills in defaults and drops anything it doesn't recognise. save() checks everything
- * first and writes nothing on any error. Values are stored as typed; templates escape them on output.
+ * Per-project page settings (spec §5.1–5.4), one `steward_project_page` row per project; lists are JSON. Not
+ * project metadata: core's API lets any project member write that. save() checks everything first and writes
+ * nothing on any error. get() checks the stored row again and fails closed: anything invalid is dropped, and
+ * public/listed hold only while core public access and the identifier still allow them. Values are stored as
+ * typed; templates escape them on output.
  */
 class ProjectPageSettings extends Base
 {
@@ -27,37 +29,45 @@ class ProjectPageSettings extends Base
     private const AUDITED = ['public', 'listed', 'show_names'];
     private const BOOLEANS = ['public', 'listed', 'show_names'];
 
-    /** Setting => metadata key. */
-    private const KEYS = [
-        'tagline' => 'steward_tagline',
-        'links' => 'steward_links',
-        'panels' => 'steward_panels',
-        'public_panels' => 'steward_public_panels',
-        'public' => 'steward_public',
-        'listed' => 'steward_listed',
-        'show_names' => 'steward_show_names',
+    public const TABLE = 'steward_project_page';
+
+    /** Setting => column. */
+    private const COLUMNS = [
+        'tagline' => 'tagline',
+        'links' => 'links',
+        'panels' => 'panels',
+        'public_panels' => 'public_panels',
+        'public' => 'is_public',
+        'listed' => 'is_listed',
+        'show_names' => 'show_names',
     ];
 
     /** @return array{tagline:string, links:list<array{label:string,url:string}>, panels:list<string>, public_panels:list<string>, public:bool, listed:bool, show_names:bool} */
     public function get(int $projectId): array
     {
-        $stored = $this->projectMetadataModel->getAll($projectId);
-        $raw = fn (string $name) => isset($stored[self::KEYS[$name]]) ? (string) $stored[self::KEYS[$name]] : null;
+        $stored = $this->db->table(self::TABLE)->eq('project_id', $projectId)->findOne() ?: [];
+        $raw = fn (string $name) => isset($stored[self::COLUMNS[$name]]) ? (string) $stored[self::COLUMNS[$name]] : null;
+        $project = $this->projectModel->getById($projectId) ?: [];
+
+        $tagline = $raw('tagline') ?? '';
+        $tagline = self::isPlainLine($tagline) ? mb_substr($tagline, 0, self::TAGLINE_MAX, 'UTF-8') : '';
 
         $links = [];
         foreach ($this->decodeList($raw('links')) ?? [] as $link) {
-            if (is_array($link) && is_string($link['label'] ?? null) && is_string($link['url'] ?? null)) {
+            if (is_array($link) && is_string($link['label'] ?? null) && is_string($link['url'] ?? null)
+                && self::isLabel($link['label']) && self::isWebUrl($link['url'])) {
                 $links[] = ['label' => $link['label'], 'url' => $link['url']];
             }
         }
 
+        $public = $raw('public') === '1' && ! empty($project['is_public']);
         return [
-            'tagline' => $raw('tagline') ?? '',
+            'tagline' => $tagline,
             'links' => array_slice($links, 0, self::LINKS_MAX),
             'panels' => self::known($this->decodeList($raw('panels')), self::HOME_PANELS, self::DEFAULT_PANELS),
             'public_panels' => self::known($this->decodeList($raw('public_panels')), self::PUBLIC_PANELS, self::DEFAULT_PUBLIC_PANELS),
-            'public' => $raw('public') === '1',
-            'listed' => $raw('listed') === '1',
+            'public' => $public,
+            'listed' => $public && $raw('listed') === '1' && trim((string) ($project['identifier'] ?? '')) !== '',
             'show_names' => $raw('show_names') === '1',
         ];
     }
@@ -79,16 +89,21 @@ class ProjectPageSettings extends Base
             return $errors;
         }
 
-        $rows = [];
-        foreach (self::KEYS as $name => $key) {
+        $row = ['updated_at' => time()];
+        foreach (self::COLUMNS as $name => $column) {
             $value = $new[$name];
-            $rows[$key] = match (true) {
-                is_bool($value) => $value ? '1' : '0',
+            $row[$column] = match (true) {
+                is_bool($value) => $value ? 1 : 0,
                 is_array($value) => json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 default => $value,
             };
         }
-        if (! $this->projectMetadataModel->save($projectId, $rows)) {
+        // One row, one statement: a save is all or nothing.
+        $table = $this->db->table(self::TABLE);
+        $saved = $this->db->table(self::TABLE)->eq('project_id', $projectId)->exists()
+            ? $table->eq('project_id', $projectId)->update($row)
+            : $table->insert(['project_id' => $projectId] + $row);
+        if (! $saved) {
             return ['form' => t('Unable to save your settings.')];
         }
 
@@ -190,6 +205,12 @@ class ProjectPageSettings extends Base
             $clean[] = ['label' => $label, 'url' => $url];
         }
         return [$clean, null];
+    }
+
+    /** A link label as save() accepts it, trimmed already. */
+    private static function isLabel(string $label): bool
+    {
+        return $label !== '' && self::isPlainLine($label) && mb_strlen($label, 'UTF-8') <= self::LABEL_MAX;
     }
 
     /** http or https (any case), a host, no whitespace or control characters anywhere. */

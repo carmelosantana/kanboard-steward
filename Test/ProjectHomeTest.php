@@ -37,6 +37,7 @@ class ProjectHomeTest extends Base
     {
         parent::setUp();
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
+        \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
         // Plugin::initialize() wires the view-switcher hook only while the feature is on.
         $on = $this->getName(false) !== 'testHomeLinkNeedsTheFeatureAtStartup';
         $this->container['configModel']->save(['steward_project_pages' => $on ? '1' : '0', 'steward_markdown' => '1']);
@@ -197,6 +198,19 @@ class ProjectHomeTest extends Base
         $this->assertStringContainsString('Fast &lt;b&gt;&amp; loud&lt;/b&gt;', $html);
         $this->assertStringNotContainsString('<b>', $html);
         $this->assertStringContainsString('<a href="https://docs.example.com/?a=1&amp;b=2" rel="noopener noreferrer" target="_blank">Docs &quot;&lt;i&gt;&quot;</a>', $html);
+    }
+
+    public function testHeaderNeverRendersAStoredUnsafeLink(): void
+    {
+        $this->container['db']->table(ProjectPageSettings::TABLE)->insert([
+            'project_id' => $this->project,
+            'links' => json_encode([['label' => 'Evil', 'url' => 'javascript:alert(1)'], ['label' => 'Fine', 'url' => 'https://example.com']]),
+            'panels' => '["header"]',
+        ]);
+        $html = $this->show($this->project)->body();
+        $this->assertStringNotContainsString('javascript:', $html);
+        $this->assertStringNotContainsString('Evil', $html);
+        $this->assertStringContainsString('<a href="https://example.com" rel="noopener noreferrer" target="_blank">Fine</a>', $html);
     }
 
     public function testDescriptionGoesThroughStewardsRenderer(): void

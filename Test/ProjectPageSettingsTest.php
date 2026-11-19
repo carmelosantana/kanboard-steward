@@ -39,6 +39,7 @@ class ProjectPageSettingsTest extends Base
     {
         parent::setUp();
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
+        \Kanboard\Plugin\Steward\Schema\version_2($this->container['db']->getConnection());
         // Plugin::initialize() wires the sidebar hook only while the feature is on.
         $on = $this->getName(false) !== 'testSidebarLinkNeedsTheFeatureAtStartup';
         $this->container['configModel']->save(['steward_project_pages' => $on ? '1' : '0']);
@@ -98,9 +99,17 @@ class ProjectPageSettingsTest extends Base
         ];
     }
 
+    /** The stored row, [] when there is none. */
     private function metadata(int $projectId): array
     {
-        return $this->container['projectMetadataModel']->getAll($projectId);
+        return $this->container['db']->table(ProjectPageSettings::TABLE)->eq('project_id', $projectId)->findOne() ?: [];
+    }
+
+    /** Writes a row straight into the table, as a database edit or another bug would. */
+    private function storeRaw(int $projectId, array $columns): void
+    {
+        $this->container['db']->table(ProjectPageSettings::TABLE)->eq('project_id', $projectId)->remove();
+        $this->assertTrue($this->container['db']->table(ProjectPageSettings::TABLE)->insert(['project_id' => $projectId] + $columns));
     }
 
     private function auditRows(): array
@@ -182,11 +191,9 @@ class ProjectPageSettingsTest extends Base
         ], $this->settings()->get($this->project));
 
         $stored = $this->metadata($this->project);
-        $this->assertSame('1', $stored['steward_public']);
-        $this->assertSame('["progress","header","files"]', $stored['steward_panels']);
-        foreach (array_keys($stored) as $key) {
-            $this->assertStringStartsWith('steward_', $key);
-        }
+        $this->assertSame(1, (int) $stored['is_public']);
+        $this->assertSame('["progress","header","files"]', $stored['panels']);
+        $this->assertSame([], $this->container['projectMetadataModel']->getAll($this->project));
     }
 
     public function testFalseIsStoredAndReadBackAsFalse(): void
@@ -205,9 +212,9 @@ class ProjectPageSettingsTest extends Base
 
     public function testUnknownAndDuplicatePanelNamesAreDroppedOnRead(): void
     {
-        $this->container['projectMetadataModel']->save($this->project, [
-            'steward_panels' => '["header","comments","header","files"]',
-            'steward_public_panels' => '["files","board","nope"]',
+        $this->storeRaw($this->project, [
+            'panels' => '["header","comments","header","files"]',
+            'public_panels' => '["files","board","nope"]',
         ]);
         $settings = $this->settings()->get($this->project);
         $this->assertSame(['header', 'files'], $settings['panels']);
@@ -216,15 +223,97 @@ class ProjectPageSettingsTest extends Base
 
     public function testCorruptStoredValuesFallBackToDefaults(): void
     {
-        $this->container['projectMetadataModel']->save($this->project, [
-            'steward_links' => '{not json',
-            'steward_panels' => '"header"',
-            'steward_public_panels' => '[1,2]',
+        $this->storeRaw($this->project, [
+            'links' => '{not json',
+            'panels' => '"header"',
+            'public_panels' => '[1,2]',
         ]);
         $settings = $this->settings()->get($this->project);
         $this->assertSame([], $settings['links']);
         $this->assertSame(['header', 'description', 'progress', 'activity'], $settings['panels']);
         $this->assertSame([], $settings['public_panels']);
+    }
+
+    public function testBadStoredValuesAreNeutralisedOnRead(): void
+    {
+        // $plain has no identifier and core public access off.
+        $this->storeRaw($this->plain, [
+            'tagline' => str_repeat('a', 170)."\n<script>",
+            'links' => json_encode([
+                ['label' => 'Bad', 'url' => 'javascript:alert(1)'],
+                ['label' => 'Data', 'url' => 'data:text/html,x'],
+                ['label' => 'No host', 'url' => 'https://'],
+                ['label' => "Two\nlines", 'url' => 'https://example.com/a'],
+                ['label' => '', 'url' => 'https://example.com/b'],
+                ['label' => 'Good', 'url' => 'https://example.com/ok'],
+            ]),
+            'panels' => '["files","comments","header"]',
+            'public_panels' => '["files","header"]',
+            'is_public' => 1,
+            'is_listed' => 1,
+            'show_names' => 1,
+        ]);
+        $settings = $this->settings()->get($this->plain);
+
+        $this->assertSame('', $settings['tagline']);
+        $this->assertSame([['label' => 'Good', 'url' => 'https://example.com/ok']], $settings['links']);
+        $this->assertSame(['files', 'header'], $settings['panels']);
+        $this->assertSame(['header'], $settings['public_panels']);
+        $this->assertFalse($settings['public'], 'core public access is off');
+        $this->assertFalse($settings['listed']);
+        $this->assertTrue($settings['show_names']);
+    }
+
+    public function testLongStoredTaglineIsClampedOnRead(): void
+    {
+        $this->storeRaw($this->project, ['tagline' => str_repeat('é', 200)]);
+        $this->assertSame(str_repeat('é', ProjectPageSettings::TAGLINE_MAX), $this->settings()->get($this->project)['tagline']);
+    }
+
+    public function testListedNeedsAnIdentifierOnRead(): void
+    {
+        $this->storeRaw($this->project, ['is_public' => 1, 'is_listed' => 1]);
+        $this->assertTrue($this->settings()->get($this->project)['listed']);
+
+        $this->assertTrue($this->container['projectModel']->update(['id' => $this->project, 'identifier' => '']));
+        $settings = $this->settings()->get($this->project);
+        $this->assertTrue($settings['public']);
+        $this->assertFalse($settings['listed']);
+    }
+
+    public function testPublicFollowsCorePublicAccessOnRead(): void
+    {
+        $this->storeRaw($this->project, ['is_public' => 1, 'is_listed' => 1]);
+        $this->assertTrue($this->container['projectModel']->disablePublicAccess($this->project));
+        $settings = $this->settings()->get($this->project);
+        $this->assertFalse($settings['public']);
+        $this->assertFalse($settings['listed']);
+    }
+
+    public function testCoreProjectMetadataCannotChangeTheSettings(): void
+    {
+        $this->assertSame([], $this->settings()->save($this->project, $this->valid()));
+        $before = $this->settings()->get($this->project);
+
+        // Core's JSON-RPC saveProjectMetadata, called by a project viewer.
+        $this->loginAs($this->viewer);
+        $api = new \Kanboard\Api\Procedure\ProjectMetaDataProcedure($this->container);
+        $api->saveProjectMetadata($this->project, [
+            'steward_public' => '1', 'steward_listed' => '1', 'steward_show_names' => '1',
+            'steward_tagline' => 'Hijacked',
+            'steward_links' => '[{"label":"x","url":"javascript:alert(1)"}]',
+            'steward_panels' => '["files"]',
+        ]);
+
+        $this->assertSame($before, $this->settings()->get($this->project));
+    }
+
+    public function testRowGoesWithItsProject(): void
+    {
+        $this->assertSame([], $this->settings()->save($this->project, $this->valid()));
+        $this->assertNotSame([], $this->metadata($this->project));
+        $this->assertTrue($this->container['projectModel']->remove($this->project));
+        $this->assertSame([], $this->metadata($this->project));
     }
 
     // --- model: validation ------------------------------------------------------------------------------

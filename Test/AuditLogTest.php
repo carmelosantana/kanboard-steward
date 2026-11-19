@@ -69,7 +69,7 @@ class AuditLogTest extends Base
         foreach (['Sqlite', 'Mysql', 'Postgres', 'Mssql'] as $d) {
             $src = file_get_contents(__DIR__."/../Schema/$d.php");
             $this->assertStringContainsString('namespace Kanboard\Plugin\Steward\Schema;', $src, $d);
-            $this->assertStringContainsString('const VERSION = 1;', $src, $d);
+            $this->assertStringContainsString('const VERSION = 2;', $src, $d);
             $this->assertStringContainsString('function version_1(PDO $pdo)', $src, $d);
             foreach (['steward_audit', 'created_at', 'event', 'actor_user_id', 'subject_user_id', 'switch_id', 'ip', 'user_agent', 'details'] as $col) {
                 $this->assertStringContainsString($col, $src, "$d: $col");
@@ -81,11 +81,32 @@ class AuditLogTest extends Base
         }
     }
 
+    public function testSchemaDialectsDeclareVersion2AndTheProjectPageTable(): void
+    {
+        foreach (['Sqlite', 'Mysql', 'Postgres', 'Mssql'] as $d) {
+            $src = file_get_contents(__DIR__."/../Schema/$d.php");
+            $this->assertStringContainsString('function version_2(PDO $pdo)', $src, $d);
+            foreach (['steward_project_page', 'project_id', 'tagline', 'links', 'panels', 'public_panels', 'is_public', 'is_listed', 'show_names', 'updated_at'] as $col) {
+                $this->assertStringContainsString($col, $src, "$d: $col");
+            }
+            $this->assertMatchesRegularExpression('/REFERENCES (dbo\.)?projects\s*\(id\) ON DELETE CASCADE/', $src, "$d foreign key");
+        }
+    }
+
+    public function testVersion2CreatesTheProjectPageTable(): void
+    {
+        $pdo = $this->container['db']->getConnection();
+        \Kanboard\Plugin\Steward\Schema\version_2($pdo);
+        $columns = array_column($pdo->query('PRAGMA table_info(steward_project_page)')->fetchAll(\PDO::FETCH_ASSOC), 'name');
+        $this->assertSame(['project_id', 'tagline', 'links', 'panels', 'public_panels', 'is_public', 'is_listed', 'show_names', 'updated_at'], $columns);
+    }
+
     public function testMysqlTableUsesUtf8mb4LikeCore(): void
     {
         $src = file_get_contents(__DIR__.'/../Schema/Mysql.php');
         $this->assertStringContainsString('ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci', $src);
         $this->assertDoesNotMatchRegularExpression('/CHARSET=utf8(?!mb4)/', $src);
+        $this->assertSame(2, substr_count($src, 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'));
     }
 
     public function testInternalWriteRoundTrips(): void
