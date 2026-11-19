@@ -5,7 +5,10 @@ use Kanboard\Controller\BaseController;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Plugin\Steward\Model\SwitchPolicy;
 
-/** Starts a user switch (spec §2). App admins only (AclCheck); behind the `switching` feature (FeatureGate). */
+/**
+ * Starts and ends a user switch (spec §2). `start`: app admins only (AclCheck), behind the `switching` feature
+ * (FeatureGate). `back`: any signed-in user, always available, refused unless this session is switched.
+ */
 class StewardSwitchController extends BaseController
 {
     /** Refusals reached only after the actor passed authorisation and the target was found. */
@@ -37,5 +40,24 @@ class StewardSwitchController extends BaseController
         } else {
             $this->response->redirect($this->helper->url->to('UserListController', 'show'));
         }
+    }
+
+    /**
+     * Switch back = log out and sign in again (Decision 21): ends the switch and sends the browser to the login
+     * page; after signing in the admin lands on the target's profile. POST with CSRF.
+     */
+    public function back(): void
+    {
+        if (! $this->request->isPost()) {
+            throw new AccessForbiddenException();
+        }
+        $this->checkCSRFForm();
+        $switching = $this->container['stewardSwitching'];
+        if (! $switching->isSwitched()) {
+            throw new AccessForbiddenException();
+        }
+
+        $switching->end('end');
+        $this->response->redirect($this->helper->url->to('AuthController', 'login'));
     }
 }

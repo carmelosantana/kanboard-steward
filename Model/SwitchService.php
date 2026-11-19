@@ -1,18 +1,22 @@
 <?php
 namespace Kanboard\Plugin\Steward\Model;
 
+use InvalidArgumentException;
 use Kanboard\Core\Base;
 use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Model\RememberMeSessionModel;
 use Throwable;
 
 /**
- * Container key `stewardSwitching`: starts a user switch and tells whether this session is one (spec §2).
+ * Container key `stewardSwitching`: starts and ends a user switch and tells whether this session is one (spec §2).
  * The admin's identity lives only in `$_SESSION['steward_switch']`; nothing else carries it.
  */
 class SwitchService extends Base
 {
     public const SESSION_KEY = 'steward_switch';
+
+    /** end() reason => audit event. */
+    public const END_EVENTS = ['end' => 'switch.end', 'expired' => 'switch.expired', 'revoked' => 'switch.revoked'];
 
     public function isSwitched(): bool
     {
@@ -77,6 +81,72 @@ class SwitchService extends Base
             'last_seen' => $now,
         ]);
         return null;
+    }
+
+    /**
+     * Ends the switch by logging the browser out (Decisions 15 and 21); nothing here restores the admin.
+     * `end` (Switch back) leaves a fresh session holding only `redirectAfterLogin` = the target's profile, so the
+     * admin returns there after signing in again; `expired` and `revoked` leave an empty one. Not switched: no-op.
+     * The session ends even when the audit write fails: logging out is always the safe direction.
+     */
+    public function end(string $reason): void
+    {
+        if (! isset(self::END_EVENTS[$reason])) {
+            throw new InvalidArgumentException('Unknown switch end reason: '.$reason);
+        }
+        $switch = $this->current();
+        if ($switch === null) {
+            return;
+        }
+        $targetId = (int) $this->userSession->getId();
+
+        // Clear the marker first: close() fires core's logout event, whose listener must not write a second row.
+        session_remove(self::SESSION_KEY);
+        $this->recordEnd(self::END_EVENTS[$reason], $switch, $targetId > 0 ? $targetId : null, $reason);
+
+        $this->sessionManager->close();
+        // Reopen through core (KB_SID name, database handler) under a fresh id. The database handler accepts any
+        // id it is offered, so without this the request's cookie would revive the destroyed id, and PHP would send
+        // no new cookie after close() expired it: the browser would lose the redirect below.
+        unset($_COOKIE[session_name()]);
+        $this->sessionManager->open();
+
+        if ($reason === 'end' && $targetId > 0) {
+            // A local path: core's redirectAfterLogin() ignores full URLs.
+            session_set('redirectAfterLogin', $this->helper->url->to('UserViewController', 'show', ['user_id' => $targetId]));
+        }
+    }
+
+    /**
+     * Closes a switch that core ended: `logout` (session.destroy while switched) or `login` (a real sign-in over
+     * a session still carrying the marker). One `switch.end` row; end() clears the marker first, so its own
+     * close() writes nothing here.
+     */
+    public function endedByCore(string $reason): void
+    {
+        if ($reason !== 'logout' && $reason !== 'login') {
+            throw new InvalidArgumentException('Unknown core end reason: '.$reason);
+        }
+        $switch = $this->current();
+        if ($switch === null) {
+            return;
+        }
+        session_remove(self::SESSION_KEY);
+        // On login the session user is already the one signing in, not the target.
+        $targetId = $reason === 'logout' ? (int) $this->userSession->getId() : 0;
+        $this->recordEnd('switch.end', $switch, $targetId > 0 ? $targetId : null, $reason);
+    }
+
+    private function recordEnd(string $event, array $switch, ?int $targetId, string $reason): void
+    {
+        $adminId = (int) ($switch['admin_id'] ?? 0);
+        $switchId = isset($switch['switch_id']) ? (string) $switch['switch_id'] : null;
+        if (! $this->stewardAudit->logInternal($event, $adminId > 0 ? $adminId : null, $targetId, ['reason' => $reason], $switchId)) {
+            $this->logger->error(sprintf(
+                'Steward: %s (%s) for switch %s could not be written to the audit log.',
+                $event, $reason, $switchId ?? '-'
+            ));
+        }
     }
 
     /**

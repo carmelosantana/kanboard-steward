@@ -8,6 +8,7 @@ use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Subscriber\LoginSubscriber;
+use Kanboard\Plugin\Steward\Subscriber\SwitchSubscriber;
 
 class Plugin extends Base
 {
@@ -38,6 +39,7 @@ class Plugin extends Base
         $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap'], self::LATE_BOOTSTRAP);
 
         $this->dispatcher->addSubscriber(new LoginSubscriber($this->container));
+        $this->dispatcher->addSubscriber(new SwitchSubscriber($this->container));
 
         $this->hook->on('template:config:sidebar', ['template' => 'Steward:config/sidebar']);
     }
