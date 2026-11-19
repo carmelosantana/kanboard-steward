@@ -3,6 +3,7 @@ namespace Kanboard\Plugin\Steward;
 
 use Kanboard\Core\Plugin\Base;
 use Kanboard\Plugin\Steward\Helper\StewardBrandingHelper;
+use Kanboard\Plugin\Steward\Helper\StewardTextHelper;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\Branding;
@@ -28,6 +29,10 @@ class Plugin extends Base
         $this->container['stewardBranding'] = fn ($c) => new Branding($c);
         // Always registered so other plugins can call it; it answers '' while branding is off.
         $this->helper->register('stewardBranding', StewardBrandingHelper::class);
+        // Spec §4: one swap of the text helper covers templates, notification emails and the editor preview.
+        if ($this->container['stewardFeatures']->isEnabled('markdown')) {
+            $this->helper->register('text', StewardTextHelper::class);
+        }
 
         // ACL for every Steward controller (AclCheck::EXPECTED), whatever the switches say; FeatureGate hides disabled ones.
         $acl = $this->container['stewardAcl'];
