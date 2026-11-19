@@ -1,4 +1,4 @@
-// Tests for Assets/js/steward-markdown.js. Zero dependencies: `node --test Steward/Test/js/`.
+// Tests for Assets/js/steward-markdown.js. Zero dependencies; from the harness root: node --test 'Steward/Test/js/*.test.mjs'
 // The script runs in a vm context against the small fake DOM below (enough selector support for what it queries).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -152,7 +152,8 @@ test('mermaid loader is injected once for several blocks, next to this script', 
     api.renderMermaidWithin(body);
     const scripts = head.querySelectorAll('script');
     assert.equal(scripts.length, 1);
-    assert.equal(scripts[0].src, 'http://kb.test/kanboard/plugins/Steward/Assets/vendor/mermaid.min.js');
+    assert.equal(scripts[0].src, 'http://kb.test/kanboard/plugins/Steward/Assets/vendor/mermaid.min.js?1700000000',
+        "carries this script's cache-buster");
 
     loadMermaid();
     assert.deepEqual(calls.initialize, [{ startOnLoad: false, securityLevel: 'strict' }]);
@@ -184,7 +185,29 @@ test('without currentScript the mermaid URL comes from this script tag', () => {
     const { head, api, body } = setup({ currentScript: false, body: [tag, el('div', { class: 'markdown' }, [mermaidBlock()])] });
 
     api.renderMermaidWithin(body);
+    assert.equal(head.querySelector('script').src, 'http://kb.test/kanboard/plugins/Steward/Assets/vendor/mermaid.min.js?1');
+});
+
+test('without a query on this script the mermaid URL has none', () => {
+    const tag = el('script', { src: '/kanboard/plugins/Steward/Assets/js/steward-markdown.js' });
+    const { head, api, body } = setup({ currentScript: false, body: [tag, el('div', { class: 'markdown' }, [mermaidBlock()])] });
+
+    api.renderMermaidWithin(body);
     assert.equal(head.querySelector('script').src, 'http://kb.test/kanboard/plugins/Steward/Assets/vendor/mermaid.min.js');
+});
+
+test('after a failed load new blocks are left alone', () => {
+    const a = mermaidBlock();
+    const { head, api, body, calls } = setup({ body: [el('div', { class: 'markdown' }, [a])] });
+    assert.equal(a.getAttribute('data-steward-mermaid'), '');
+    head.querySelector('script').onerror();
+
+    const b = mermaidBlock();
+    body.children[0].appendChild(b);
+    assert.equal(api.renderMermaidWithin(body), 0, 'nothing queued');
+    assert.equal(b.hasAttribute('data-steward-mermaid'), false);
+    assert.equal(head.querySelectorAll('script').length, 1, 'no second loader');
+    assert.deepEqual(calls.run, []);
 });
 
 // --- start-up and late content --------------------------------------------------------------------------

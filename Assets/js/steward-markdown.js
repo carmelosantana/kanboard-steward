@@ -3,7 +3,8 @@
  * Mermaid diagrams. Vanilla JS (no jQuery), so it also runs on public pages that load no core scripts.
  *
  * Mermaid (~3.5 MB) loads only when a page holds a <pre class="mermaid">: a <script src> to the vendored file,
- * resolved next to this script's own URL (no inline config; core's CSP forbids inline script).
+ * resolved next to this script's own URL and carrying its query (core's cache-buster), with no inline config
+ * (core's CSP forbids inline script). After a failed load, later blocks are left as text.
  * Content core inserts later (the comment preview tab, modals) is picked up by a MutationObserver.
  * Every block is marked before it is touched, so each runs once however often a pass repeats.
  */
@@ -23,7 +24,13 @@
             var tag = document.querySelector('script[src*="steward-markdown.js"]');
             src = tag && (tag.src || tag.getAttribute('src'));
         }
-        return src ? new URL('../vendor/mermaid.min.js', new URL(src, document.baseURI)).href : null;
+        if (!src) {
+            return null;
+        }
+        var self = new URL(src, document.baseURI);
+        var url = new URL('../vendor/mermaid.min.js', self);
+        url.search = self.search; // core's cache-buster (?<mtime>), so a new release is fetched afresh
+        return url.href;
     }
 
     function toArray(list) {
@@ -59,6 +66,9 @@
 
     /** Renders each `<pre class="mermaid">` once, loading Mermaid on first need. */
     function renderMermaidWithin(root) {
+        if (mermaidState === 'failed') {
+            return 0;
+        }
         var nodes = toArray(root.querySelectorAll('pre.mermaid')).filter(function (node) {
             return !node.hasAttribute(MERMAID_MARK) && !node.hasAttribute('data-processed');
         });
@@ -83,12 +93,15 @@
         if (mermaidState !== 'idle') {
             return;
         }
+        // Another plugin (or a page) may already have loaded Mermaid: reuse it rather than load a second copy.
+        // mermaidReady() initialises it with Steward's strict settings either way.
         if (window.mermaid) {
             mermaidReady();
             return;
         }
         if (!mermaidUrl) {
             mermaidState = 'failed';
+            pendingMermaid = [];
             return;
         }
 
@@ -98,6 +111,7 @@
         script.onload = mermaidReady;
         script.onerror = function () {
             mermaidState = 'failed';
+            pendingMermaid = [];
         };
         document.head.appendChild(script);
     }
@@ -105,6 +119,7 @@
     function mermaidReady() {
         if (!window.mermaid) {
             mermaidState = 'failed';
+            pendingMermaid = [];
             return;
         }
         mermaidState = 'ready';
