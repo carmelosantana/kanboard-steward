@@ -548,6 +548,34 @@ class ProjectPageSettingsTest extends Base
         }
     }
 
+    /**
+     * Reads stay pure: with core public access off the stored switch is kept, and the page says it comes back
+     * when public access is turned on again.
+     */
+    public function testNoticeWhenThePublicPageWillComeBackWithPublicAccess(): void
+    {
+        $notice = 'The public page will come back if public access is turned on again';
+        $fieldset = function (): string {
+            $body = $this->act('show', $this->project, [], true, 'GET')->body();
+            $fieldset = substr($body, strpos($body, '<legend>Public page</legend>'));
+            return substr($fieldset, 0, strpos($fieldset, '</fieldset>'));
+        };
+
+        $this->storeRaw($this->project, ['is_public' => 1, 'is_listed' => 1]);
+        $this->assertStringNotContainsString($notice, $fieldset(), 'core public access on');
+
+        $this->assertTrue($this->container['projectModel']->disablePublicAccess($this->project));
+        $html = $fieldset();
+        $this->assertStringContainsString($notice, $html);
+        $this->assertLessThan(strpos($html, $notice), strpos($html, 'name="public"'));
+        $this->assertSame(1, (int) $this->container['db']->table(ProjectPageSettings::TABLE)
+            ->eq('project_id', $this->project)->findOneColumn('is_public'), 'the read changed nothing');
+
+        $this->storeRaw($this->project, ['is_public' => 0, 'is_listed' => 0]);
+        $this->assertStringNotContainsString($notice, $fieldset(), 'stored off');
+        $this->assertStringNotContainsString($notice, $this->act('show', $this->plain, [], true, 'GET')->body(), 'nothing stored');
+    }
+
     public function testShowEscapesStoredValues(): void
     {
         $this->assertSame([], $this->settings()->save($this->project, $this->valid([

@@ -115,6 +115,8 @@ class StewardProjectSettingsController extends BaseController
             'links_max' => ProjectPageSettings::LINKS_MAX,
             'tagline_max' => ProjectPageSettings::TAGLINE_MAX,
             'label_max' => ProjectPageSettings::LABEL_MAX,
+            // Core public access off but the page stored on: it comes back with public access (spec §5.3).
+            'public_returns' => empty($project['is_public']) && $this->settings()->storedPublic((int) $project['id']),
         ]));
     }
 

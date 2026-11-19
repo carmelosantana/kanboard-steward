@@ -88,6 +88,9 @@ $fieldError = function (string $field) use ($errors) {
         <?php else: ?>
             <?= $this->form->checkbox('public', t('Public page'), 1, false, '', ['disabled' => 'disabled']) ?>
             <p class="form-help"><?= t('Turn on this project\'s public access first (Public access in this sidebar).') ?></p>
+            <?php if (! empty($public_returns)): ?>
+                <p class="alert alert-info"><?= t('The public page will come back if public access is turned on again.') ?></p>
+            <?php endif ?>
         <?php endif ?>
         <?= $fieldError('public') ?>
         <p class="alert"><?= t('The public page needs this project\'s public access, which also publishes the read-only board (with assignees), the RSS and iCal feeds and task pages (with comments and subtasks) to anyone who has its link. The public page never shows that link, but whoever already has it sees all of that.') ?></p>

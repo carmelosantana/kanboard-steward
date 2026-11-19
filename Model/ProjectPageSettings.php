@@ -73,6 +73,15 @@ class ProjectPageSettings extends Base
     }
 
     /**
+     * The stored Public page switch, whatever core public access says. get() reports the page off while core public
+     * access is off; this says whether it comes back when public access is turned on again. A pure read.
+     */
+    public function storedPublic(int $projectId): bool
+    {
+        return (string) $this->db->table(self::TABLE)->eq('project_id', $projectId)->findOneColumn(self::COLUMNS['public']) === '1';
+    }
+
+    /**
      * Keys left out of $values keep their stored value. Strings are trimmed; booleans must be real booleans.
      *
      * @return array<string,string> field => message; empty when saved
