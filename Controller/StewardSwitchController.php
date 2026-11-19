@@ -3,11 +3,13 @@ namespace Kanboard\Plugin\Steward\Controller;
 
 use Kanboard\Controller\BaseController;
 use Kanboard\Core\Controller\AccessForbiddenException;
+use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SwitchPolicy;
 
 /**
  * Starts and ends a user switch (spec §2). `confirm` and `start`: app admins only (AclCheck), behind the `switching`
- * feature (FeatureGate). `back`: any signed-in user, always available, refused unless this session is switched.
+ * feature (FeatureGate, and each checks it again itself). `back`: any signed-in user, always available (it ends
+ * the switch, so it works with switching off), refused unless this session is switched.
  */
 class StewardSwitchController extends BaseController
 {
@@ -20,6 +22,9 @@ class StewardSwitchController extends BaseController
      */
     public function confirm(): void
     {
+        if (! $this->featureOn()) {
+            return;
+        }
         $raw = $this->request->getStringParam('user_id');
         $target = is_string($raw) && ctype_digit($raw) && (int) $raw > 0 ? ($this->userModel->getById((int) $raw) ?: null) : null;
         $allowed = $this->container['stewardSwitching']->refusalFor($target) === null;
@@ -33,6 +38,9 @@ class StewardSwitchController extends BaseController
     /** POST with CSRF; `user_id` comes from the form. */
     public function start(): void
     {
+        if (! $this->featureOn()) {
+            return;
+        }
         if (! $this->request->isPost()) {
             throw new AccessForbiddenException();
         }
@@ -75,5 +83,15 @@ class StewardSwitchController extends BaseController
 
         $switching->end('end');
         $this->response->redirect($this->helper->url->to('AuthController', 'login'));
+    }
+
+    /** Spec §1 defence in depth: the gate's 404 when switching is off. Not for back(). */
+    private function featureOn(): bool
+    {
+        if ($this->container['stewardFeatures']->isEnabled('switching')) {
+            return true;
+        }
+        $this->response->html(FeatureGate::NOT_FOUND_BODY, 404);
+        return false;
     }
 }

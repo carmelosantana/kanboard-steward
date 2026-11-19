@@ -206,6 +206,17 @@ class SwitchEndTest extends Base
         $this->assertFalse((new FeatureGate($this->container))->check('Steward', 'StewardSwitchController', 'start'));
     }
 
+    /** The controller's own feature check (spec §1) leaves back() alone: it ends the switch with switching off. */
+    public function testBackEndsTheSwitchWithSwitchingOff(): void
+    {
+        $this->switchToAna();
+        $this->container['configModel']->save(['steward_switching' => '0']);
+        $this->container['memoryCache']->flush();
+
+        $this->assertSame($this->loginUrl(), $this->back(['csrf_token' => $this->csrf()]));
+        $this->assertFalse($this->service()->isSwitched());
+    }
+
     // --- switch back ------------------------------------------------------------------------------------
 
     public function testBackLogsOutAndSendsTheBrowserToTheLoginPage(): void

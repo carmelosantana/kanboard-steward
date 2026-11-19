@@ -1,6 +1,7 @@
 <?php
 require_once 'tests/units/Base.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/BrandingDoubles.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
@@ -174,6 +175,34 @@ class SwitchStartTest extends Base
         $this->assertSame('switching', (new FeatureGate($this->container))->featureFor('StewardSwitchController', 'start'));
         $this->assertTrue($this->container['stewardAcl']->verify());
         $this->assertInstanceOf(SwitchService::class, $this->container['stewardSwitching']);
+    }
+
+    /** Spec §1 defence in depth: with switching off, confirm and start answer the gate's 404 themselves. */
+    public function testConfirmAndStartAnswerTheGates404WithSwitchingOff(): void
+    {
+        $this->container['configModel']->save(['steward_switching' => '0']);
+        $this->container['memoryCache']->flush();
+        $post = ['csrf_token' => $this->csrf(), 'user_id' => (string) $this->ana];
+        foreach (['confirm' => 'GET', 'start' => 'POST'] as $action => $method) {
+            unset($this->container['request']);
+            $this->container['request'] = new Request($this->container, ['REQUEST_METHOD' => $method],
+                ['controller' => 'StewardSwitchController', 'action' => $action, 'plugin' => 'Steward', 'user_id' => (string) $this->ana], $post, [], []);
+            $response = new StewardBrandingResponse($this->container);
+            unset($this->container['response']);
+            $this->container['response'] = $response;
+
+            (new StewardSwitchController($this->container))->$action();
+
+            $this->assertSame(404, $response->code(), $action);
+            $this->assertSame(FeatureGate::NOT_FOUND_BODY, $response->body(), $action);
+        }
+        $this->assertSame(self::ADMIN, $this->container['userSession']->getId());
+        $this->assertFalse($this->service()->isSwitched());
+        $this->assertSame([], $this->auditRows());
+
+        // Behind the controller, the service still refuses on its own.
+        $this->assertSame('disabled', $this->service()->start($this->ana));
+        $this->assertFalse($this->service()->isSwitched());
     }
 
     public function testNotSwitchedByDefault(): void
@@ -368,7 +397,8 @@ class SwitchStartTest extends Base
     /** @return array<string,array{0:string}> */
     public static function authorisationReasons(): array
     {
-        return ['disabled' => ['disabled'], 'acl_conflict' => ['acl_conflict'], 'not_admin' => ['not_admin'],
+        // 'disabled' never reaches the service through the controller: start() answers the gate's 404 first.
+        return ['acl_conflict' => ['acl_conflict'], 'not_admin' => ['not_admin'],
             'nested' => ['nested'], '2fa_pending' => ['2fa_pending']];
     }
 
@@ -380,7 +410,6 @@ class SwitchStartTest extends Base
     public function testAuthorisationRefusalsGoToTheUserListEvenForAnExistingTarget(string $reason): void
     {
         match ($reason) {
-            'disabled' => $this->container['configModel']->save(['steward_switching' => '0']),
             'acl_conflict' => $this->container[AclCheck::FLAG] = true,
             'not_admin' => $this->container['db']->table(UserModel::TABLE)->eq('id', self::ADMIN)->update(['role' => Role::APP_USER]),
             'nested' => $_SESSION['steward_switch'] = ['switch_id' => str_repeat('a', 64), 'admin_id' => 1, 'admin_username' => 'admin', 'started_at' => 1, 'last_seen' => 1],
