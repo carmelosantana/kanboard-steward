@@ -7,10 +7,11 @@ has its own switch under **Settings → Steward**.
 
 ## Install
 
-Download `Steward-1.0.0.zip` from the releases page, or install it from ModMenu, and unzip it into
-`plugins/Steward/` (the zip's single top-level folder is `Steward`). Requires Kanboard `>=1.2.47` and PHP
+Download `Steward-1.0.0.zip` from the releases page and unzip it into `plugins/Steward/` (the zip's single top-level folder is `Steward`). Requires Kanboard `>=1.2.47` and PHP
 `>=8.4` with GD. Steward adds two tables (`steward_audit`, `steward_project_page`) through core's plugin
 migrations on SQLite, MySQL, Postgres and SQL Server.
+
+Install manually from the release zip for now; ModMenu can install it once Steward is listed there.
 
 Recommended: [Resend](https://github.com/carmelosantana/kanboard-resend) 1.0.0 or later, for a working
 email transport behind the test-email button (any transport works).
@@ -107,7 +108,8 @@ A message up to 500 characters with *emphasis*, **strong**, `code` and `http(s)`
 as typed), a level (info or warning), an optional start and end time, and where it shows: always on
 signed-in pages, optionally on the login page and on Steward's public pages and directory (not core's public
 board or task views). If dismissible, a signed-in user's dismissal lasts until the message, level or times
-change. A non-dismissible banner shows to everyone, whatever they dismissed earlier.
+change. A non-dismissible banner shows to everyone, whatever they dismissed earlier. Defaults: dismissible on;
+login page and public pages off.
 
 ## Security model
 
@@ -223,6 +225,8 @@ logs the conflict.
 - **A public page returns with public access.** Turning core public access off hides the page but keeps
   Steward's toggle; turning it on again brings the page back (with a new token). The project settings page
   says so.
+- **Admin password change.** Changing the admin's own password during a switch doesn't end the switch; the
+  switched session only carries the target's rights, and switching back signs you out.
 - **Natural session expiry** (PHP's own session lifetime, not Steward's idle timeout) leaves no `switch.end`
   row; the switch simply ends with the session.
 - **Accepted risks.** A request already in flight on the admin's pre-switch session id can write that
@@ -239,8 +243,8 @@ Tested against Kanboard 1.2.47 and 1.2.57 (the full PHPUnit suite on both). Diff
 - **Sessions:** 1.2.57 drops a session opened before the user's password changed. Steward writes the switched
   session the way core's sign-in does on each version and asks core's own session check, so on 1.2.57 a
   password change for the target user ends the switch like a role change does.
-- **API:** 1.2.57 no longer lets project viewers write project metadata through JSON-RPC. Steward keeps its
-  project settings in its own table on both versions.
+- **Project page settings:** Steward keeps them in its own table on both versions and checks them again
+  whenever they are read.
 - **Board moves:** 1.2.57 reads a JSON request body only when it is sent as JSON. The `switch.action` row reads
   the task id the same way core does, so it records the task core moves.
 - **Reverse proxy:** 1.2.57 uses reverse-proxy authentication only with trusted proxy networks set. Steward
@@ -252,7 +256,8 @@ Tested against Kanboard 1.2.47 and 1.2.57 (the full PHPUnit suite on both). Diff
 Buildless: plain PHP, CSS and vanilla JS. From the harness root:
 
 ```sh
-./testing/run-plugin-tests.sh Steward        # PHPUnit, against Kanboard 1.2.47
+./testing/run-plugin-tests.sh Steward                               # PHPUnit, against Kanboard 1.2.47
+KB_SRC=<1.2.57 checkout> ./testing/run-plugin-tests.sh Steward      # PHPUnit, against Kanboard 1.2.57
 node --test 'Steward/Test/js/*.test.mjs'     # JS
 ```
 

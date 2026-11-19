@@ -12,8 +12,9 @@ use Throwable;
  * no PHP session or no `steward_switch` marker it does nothing.
  *
  * In order: switching off → end (revoked, `disabled`); admin no longer an active app admin → end (revoked,
- * `not_admin`); target's role or active flag changed → end (revoked, `target_changed`), before core's
- * checkCurrentSession would wipe the session without an end row; idle too long → end (expired). Then the action
+ * `not_admin`); core's session check fails for the target (role or active flag changed; on 1.2.57 also a password
+ * change) → end (revoked, `target_changed`), before core's checkCurrentSession would wipe the session without an
+ * end row; idle too long → end (expired). Then the action
  * table: blocked → 403; a write, or any non-GET request → a `switch.action` row first, 503 if it can't be written.
  * Ending a switch logs the browser out and lets core's middleware send it to the login page.
  */
