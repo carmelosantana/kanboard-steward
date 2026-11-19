@@ -1,0 +1,14 @@
+{
+    "name": "Steward",
+    "description": "Admin tools, branding, Markdown and project pages for Kanboard.",
+    "version": "1.0.0",
+    "author": "Carmelo Santana",
+    "homepage": "https://github.com/carmelosantana/kanboard-steward",
+    "license": "MIT",
+    "kanboard_version": ">=1.2.47",
+    "php_version": ">=8.4",
+    "requires": [],
+    "recommends": [
+        { "plugin": "Resend", "min_version": "1.0.0", "reason": "a working email transport for the test-email button" }
+    ]
+}
