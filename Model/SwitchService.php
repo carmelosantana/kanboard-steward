@@ -235,8 +235,9 @@ class SwitchService extends Base
             }
             $token = (string) $credentials['token'];
             $rows = fn () => $this->db->table(RememberMeSessionModel::TABLE)->eq('token', $token);
-            foreach ($rows()->findAllByColumn('id') ?: [] as $id) {
-                $this->rememberMeSessionModel->remove((int) $id);
+            // Core 1.2.57's remove() also takes the owner's id; older cores ignore the extra argument.
+            foreach ($rows()->columns('id', 'user_id')->findAll() ?: [] as $row) {
+                $this->rememberMeSessionModel->remove((int) $row['id'], (int) $row['user_id']);
             }
             if ($rows()->count() !== 0) {
                 $this->logger->error('Steward: remember-me login could not be removed; switch refused.');

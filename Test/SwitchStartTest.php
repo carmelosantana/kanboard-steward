@@ -32,12 +32,27 @@ class StewardSwitchStartLogSink extends \Kanboard\Core\Log\Base
     }
 }
 
-/** A remember-me model whose remove() reports success but deletes nothing. */
+/**
+ * A remember-me model whose remove() reports success but deletes nothing.
+ * Core 1.2.57 added remove()'s $user_id; the optional parameter fits both signatures.
+ */
 class StewardStuckRememberMeModel extends RememberMeSessionModel
 {
-    public function remove($session_id)
+    public function remove($session_id, $user_id = null)
     {
         return true;
+    }
+}
+
+/** Records remove()'s arguments, then removes as core does. */
+class StewardSpyRememberMeModel extends RememberMeSessionModel
+{
+    public array $calls = [];
+
+    public function remove($session_id, $user_id = null)
+    {
+        $this->calls[] = func_get_args();
+        return parent::remove(...func_get_args());
     }
 }
 
@@ -301,6 +316,21 @@ class SwitchStartTest extends Base
         $this->assertSame(0, $this->rowCount(RememberMeSessionModel::TABLE, ['id' => $here]));
         $this->assertSame(1, $this->rowCount(RememberMeSessionModel::TABLE, ['token' => $elsewhere['token']]));
         $this->assertSame(0, $this->rowCount(RememberMeSessionModel::TABLE, ['user_id' => $this->ana]));
+    }
+
+    /** Core 1.2.57's remove() needs the owner's user id as well; older cores ignore the extra argument. */
+    public function testRevocationPassesTheRowOwnerToCore(): void
+    {
+        $here = $this->rememberAdmin();
+        $this->request('POST', []);
+        $spy = new StewardSpyRememberMeModel($this->container);
+        unset($this->container['rememberMeSessionModel']);
+        $this->container['rememberMeSessionModel'] = $spy;
+
+        $this->assertNull($this->service()->start($this->ana));
+
+        $this->assertSame([[$here, self::ADMIN]], $spy->calls);
+        $this->assertSame(0, $this->rowCount(RememberMeSessionModel::TABLE, ['id' => $here]));
     }
 
     public function testNoRememberMeCookieMeansNothingToRevoke(): void
