@@ -238,7 +238,7 @@ class SwitchEndTest extends Base
         $path = $_SESSION['redirectAfterLogin'];
         $this->assertFalse(filter_var($path, FILTER_VALIDATE_URL));
         $this->assertDoesNotMatchRegularExpression('#^[a-z][a-z0-9+.-]*:|^//#i', $path);
-        $this->assertStringContainsString('user_id='.$this->ana, $path);
+        $this->assertSame($this->profilePath($this->ana), $path);
     }
 
     public function testSigningInAsTheAdminAfterwardsLandsOnTheTargetsProfile(): void
@@ -416,6 +416,25 @@ class SwitchEndTest extends Base
         $this->assertSame(self::ADMIN, $this->container['userSession']->getId());
         $ends = $this->endRows();
         $this->assertCount(1, $ends);
+        $this->assertSame($switchId, $ends[0]['switch_id']);
+        $this->assertSame('login', json_decode($ends[0]['details'], true)['reason']);
+    }
+
+    /** The sign-in form posted from a session that is still switched: core's own login path clears the marker. */
+    public function testCredentialsPostedFromASwitchedSessionClearTheSwitch(): void
+    {
+        $switchId = $this->switchToAna();
+        $this->request('POST', ['csrf_token' => $this->csrf(), 'username' => 'admin', 'password' => 'admin'],
+            ['controller' => 'AuthController', 'action' => 'check']);
+        $this->captureResponse();
+
+        (new AuthController($this->container))->check();
+
+        $this->assertFalse($this->service()->isSwitched());
+        $this->assertSame(self::ADMIN, $this->container['userSession']->getId());
+        $ends = $this->endRows();
+        $this->assertCount(1, $ends);
+        $this->assertSame('switch.end', $ends[0]['event']);
         $this->assertSame($switchId, $ends[0]['switch_id']);
         $this->assertSame('login', json_decode($ends[0]['details'], true)['reason']);
     }

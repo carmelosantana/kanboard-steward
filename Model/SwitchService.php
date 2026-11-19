@@ -139,7 +139,8 @@ class SwitchService extends Base
         $this->sessionManager->close();
         // Reopen through core (KB_SID name, database handler) under a fresh id. The database handler accepts any
         // id it is offered, so without this the request's cookie would revive the destroyed id, and PHP would send
-        // no new cookie after close() expired it: the browser would lose the redirect below.
+        // no new cookie after close() expired it: the browser would lose the redirect below. session.use_strict_mode
+        // would not help: PHP enforces it through the handler's validateId(), which core's SessionHandler lacks.
         unset($_COOKIE[session_name()]);
         $this->sessionManager->open();
 
