@@ -18,6 +18,37 @@ class SwitchService extends Base
     /** end() reason => audit event. */
     public const END_EVENTS = ['end' => 'switch.end', 'expired' => 'switch.expired', 'revoked' => 'switch.revoked'];
 
+    /** @var array<string,array<string,string>> plugin => ['Controller::action' => 'read'|'write'] */
+    private array $allowed = [];
+
+    /**
+     * Lets a plugin's actions run while switched (spec §2): `['Controller::action' => 'read'|'write']`. Keyed by
+     * plugin, so one plugin's opt-in never covers another's same-named controller. Steward's own rows are fixed.
+     */
+    public function allow(string $plugin, array $actions): void
+    {
+        if (! preg_match('/^\w+$/', $plugin) || strcasecmp($plugin, 'Steward') === 0) {
+            throw new InvalidArgumentException('Invalid plugin name for switch registration: '.$plugin);
+        }
+        foreach ($actions as $pair => $level) {
+            if (! is_string($pair) || ! preg_match('/^\w+::\w+$/', $pair)
+                || ! in_array($level, [SwitchActionTable::READ, SwitchActionTable::WRITE], true)) {
+                throw new InvalidArgumentException('Invalid switch registration for '.$plugin.': '.$pair);
+            }
+            $this->allowed[$plugin][$pair] = $level;
+        }
+    }
+
+    /** @return array<string,array<string,string>> the suite's view pages (when installed), then allow() calls. */
+    public function registrations(): array
+    {
+        $all = SwitchActionTable::suite();
+        foreach ($this->allowed as $plugin => $actions) {
+            $all[$plugin] = $actions + ($all[$plugin] ?? []);
+        }
+        return $all;
+    }
+
     public function isSwitched(): bool
     {
         return session_exists(self::SESSION_KEY);
@@ -88,8 +119,9 @@ class SwitchService extends Base
      * `end` (Switch back) leaves a fresh session holding only `redirectAfterLogin` = the target's profile, so the
      * admin returns there after signing in again; `expired` and `revoked` leave an empty one. Not switched: no-op.
      * The session ends even when the audit write fails: logging out is always the safe direction.
+     * $detail, when given, is recorded as the reason instead (the guard's `disabled`, `not_admin`, `target_changed`).
      */
-    public function end(string $reason): void
+    public function end(string $reason, ?string $detail = null): void
     {
         if (! isset(self::END_EVENTS[$reason])) {
             throw new InvalidArgumentException('Unknown switch end reason: '.$reason);
@@ -102,7 +134,7 @@ class SwitchService extends Base
 
         // Clear the marker first: close() fires core's logout event, whose listener must not write a second row.
         session_remove(self::SESSION_KEY);
-        $this->recordEnd(self::END_EVENTS[$reason], $switch, $targetId > 0 ? $targetId : null, $reason);
+        $this->recordEnd(self::END_EVENTS[$reason], $switch, $targetId > 0 ? $targetId : null, $detail ?? $reason);
 
         $this->sessionManager->close();
         // Reopen through core (KB_SID name, database handler) under a fresh id. The database handler accepts any

@@ -6,6 +6,7 @@ use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\AuditLog;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
+use Kanboard\Plugin\Steward\Model\SwitchGuard;
 use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Subscriber\LoginSubscriber;
 use Kanboard\Plugin\Steward\Subscriber\SwitchSubscriber;
@@ -29,12 +30,14 @@ class Plugin extends Base
         $this->route->addRoute('steward/settings', 'StewardSettingsController', 'show', 'Steward');
         $this->route->addRoute('steward/settings/save', 'StewardSettingsController', 'save', 'Steward');
         $this->route->addRoute('steward/audit', 'StewardAuditController', 'index', 'Steward');
-        // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard
-        // (added after these). Plugins loaded after Steward register onStartup on the same event after us, so
+        // app.bootstrap listeners run in registration order: AclCheck, then FeatureGate, then SwitchGuard, all
+        // before core's authentication and ACL middleware. Plugins loaded after Steward register onStartup on the same event after us, so
         // the check and the gate run again last, in case one of them replaced a rule.
         $gate = new FeatureGate($this->container);
         $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap']);
         $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap']);
+        // Whatever the switches say: with switching off it ends any leftover switch on its next request.
+        $this->dispatcher->addListener('app.bootstrap', [new SwitchGuard($this->container), 'onBootstrap']);
         $this->dispatcher->addListener('app.bootstrap', [$acl, 'onBootstrap'], self::LATE_BOOTSTRAP);
         $this->dispatcher->addListener('app.bootstrap', [$gate, 'onBootstrap'], self::LATE_BOOTSTRAP);
 
