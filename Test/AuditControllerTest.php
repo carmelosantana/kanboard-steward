@@ -221,6 +221,21 @@ class AuditControllerTest extends Base
         $this->assertStringContainsString('value="'.$one.'"', $this->index(['switch_id' => $one]));
     }
 
+    /** A switch id is at most 64 characters; anything longer is ignored rather than queried. */
+    public function testSwitchIdFilterLongerThan64CharactersIsIgnored(): void
+    {
+        $long = str_repeat('c3', 32).'c';
+        $t = time() - 100;
+        $this->row('switch.start', $t, ['switch_id' => $long, 'details' => '{"m":"mark-L"}']);
+        $this->row('login.success', $t + 1, ['details' => '{"m":"mark-A"}']);
+        $this->loginAs(1);
+
+        $html = $this->index(['switch_id' => $long]);
+        $this->assertSame(['A', 'L'], $this->markers($html), 'no filter applied');
+        $this->assertStringNotContainsString('value="'.$long.'"', $html);
+        $this->assertSame(['L'], $this->markers($this->index(['switch_id' => $long, 'event' => 'switch.start'])));
+    }
+
     public function testSwitchIdIsEscaped(): void
     {
         $evil = '"><b>x</b>&<i>';

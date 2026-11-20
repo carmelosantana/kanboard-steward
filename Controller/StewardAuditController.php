@@ -9,6 +9,8 @@ use Kanboard\Core\Controller\AccessForbiddenException;
 class StewardAuditController extends BaseController
 {
     public const PER_PAGE = 50;
+    /** Longest switch_id filter; the form field has the same maxlength. */
+    public const SWITCH_ID_MAX = 64;
 
     public function index(): void
     {
@@ -21,8 +23,8 @@ class StewardAuditController extends BaseController
         $form = [
             'event' => $this->param('event'),
             'user_id' => ctype_digit($this->param('user_id')) ? $this->param('user_id') : '',
-            // Exact match on the full id (spec §2: one switch's writes share it).
-            'switch_id' => $this->param('switch_id'),
+            // Exact match on the full id (spec §2: one switch's writes share it); longer than an id is ignored.
+            'switch_id' => mb_strlen($this->param('switch_id'), 'UTF-8') <= self::SWITCH_ID_MAX ? $this->param('switch_id') : '',
             'from' => $from !== null ? $from->format('Y-m-d') : '',
             'to' => $to !== null ? $to->format('Y-m-d') : '',
         ];
