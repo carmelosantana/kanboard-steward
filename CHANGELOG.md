@@ -38,6 +38,11 @@ Markdown is on.
 - Plugins that add assets through core's layout hooks also load on Steward's public pages.
 - Until ShadcnTheme 1.2.0, the login page shows ShadcnTheme's header above Steward's logo and site name.
 - Turning a project's public access back on brings its Steward public page back, at a new token URL.
+- Public pages show `[hidden]` in place of any project's public access token, however it is written.
+- While switched, the user summary page (core's **My profile** link) is refused, as it shows the user's feed
+  token.
+- Known gap: there is no `steward:switch` hook event yet; other plugins can check
+  `stewardSwitching->isSwitched()`.
 - A switch that ends because the PHP session itself expired leaves no `switch.end` row.
 - Public project pages at `/public/project/:token` are never indexed; only listed projects' `/explore` pages
   can be.
