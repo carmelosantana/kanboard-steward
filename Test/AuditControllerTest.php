@@ -70,7 +70,7 @@ class AuditControllerTest extends Base
         unset($this->container['request']);
         $this->container['request'] = new Request($this->container, ['REQUEST_METHOD' => 'GET'], $get ?: ['_' => '1'], [], [], []);
         $html = '';
-        $resp = $this->createMock(Response::class);
+        $resp = $this->createStub(Response::class);
         $resp->method('html')->willReturnCallback(function ($out) use (&$html) { $html = (string) $out; });
         unset($this->container['response']);
         $this->container['response'] = $resp;
@@ -217,7 +217,7 @@ class AuditControllerTest extends Base
         $this->assertSame(['D'], $this->markers($this->index(['switch_id' => $two])));
         // Exact match only: a prefix finds nothing.
         $this->assertSame([], $this->markers($this->index(['switch_id' => 'a1a1a1a1'])));
-        // Kept in the form and in the pager links.
+        // Kept in the form (pager links are not asserted: that needs more than PER_PAGE rows).
         $this->assertStringContainsString('value="'.$one.'"', $this->index(['switch_id' => $one]));
     }
 
@@ -289,7 +289,7 @@ class AuditControllerTest extends Base
         unset($this->container['request']);
         $this->container['request'] = $request;
         unset($this->container['response']);
-        $this->container['response'] = $this->createMock(Response::class);
+        $this->container['response'] = $this->createStub(Response::class);
 
         (new StewardSettingsController($this->container))->save();
 
@@ -306,11 +306,11 @@ class AuditControllerTest extends Base
         $this->loginAs(1);
         $request = $this->getMockBuilder(Request::class)
             ->setConstructorArgs([$this->container])->onlyMethods(['getValues'])->getMock();
-        $request->method('getValues')->willReturn(['steward_markdown' => '1']);
+        $request->expects($this->once())->method('getValues')->willReturn(['steward_markdown' => '1']);
         unset($this->container['request']);
         $this->container['request'] = $request;
         unset($this->container['response']);
-        $this->container['response'] = $this->createMock(Response::class);
+        $this->container['response'] = $this->createStub(Response::class);
 
         (new StewardSettingsController($this->container))->save();
 
