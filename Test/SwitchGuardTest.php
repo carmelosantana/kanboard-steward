@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/PulseStub.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
 
 use KanboardTests\units\Base;

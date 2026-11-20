@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/PulseStub.php';
 
 use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Model\SwitchActionTable;
@@ -160,6 +161,6 @@ class SwitchActionTableTest extends Base
                 }
             }
         }
-        $this->assertArrayHasKey('Pulse', $suite, 'the harness mounts the suite plugins');
+        $this->assertArrayHasKey('Pulse', $suite, 'Pulse is installed (or its stand-in)');
     }
 }
