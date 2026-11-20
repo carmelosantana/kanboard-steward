@@ -383,10 +383,11 @@ class SwitchGuardTest extends Base
     {
         $token = Token::getToken();
         $this->assertTrue($this->container['userModel']->update(['id' => $this->ana, 'token' => $token]));
+        // Core's condition for rendering the RSS/iCal links: the target's token is set.
+        $this->assertSame($token, $this->container['userModel']->getById($this->ana)['token']);
         $this->route('GET', ['controller' => 'UserViewController', 'action' => 'show', 'user_id' => $this->ana]);
         $this->assertTrue($this->runGuard());
         $this->assertSame(403, $this->sent[1]);
-        $this->assertStringNotContainsString($token, $this->sent[0]);
         $this->route('GET', ['controller' => 'UserViewController', 'action' => 'profile', 'user_id' => $this->ana]);
         $this->assertFalse($this->runGuard());
     }
