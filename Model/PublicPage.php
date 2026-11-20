@@ -144,6 +144,13 @@ class PublicPage extends Base
             if ($html[$i] === '&' && preg_match('/\G&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);?/', $html, $m, 0, $i)) {
                 $reference = '&'.$m[1].';';
                 $decoded = html_entity_decode($reference, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($decoded === $reference && $m[1][0] === '#') {
+                    // PHP leaves control characters such as &#13; undecoded; a browser reads them (CR it then drops
+                    // from a URL). The C1 range maps to Windows-1252 there, which is never a token character either.
+                    $code = $m[1][1] === 'x' || $m[1][1] === 'X' ? hexdec(substr($m[1], 2)) : (int) substr($m[1], 1);
+                    $decoded = is_int($code) && $code > 0 && $code <= 0x10FFFF && ($code < 0xD800 || $code > 0xDFFF)
+                        ? (string) mb_chr($code, 'UTF-8') : "\u{FFFD}";
+                }
                 if ($decoded !== $reference && $decoded !== '') {
                     $bytes .= $decoded;
                     $inTag .= str_repeat($tag, strlen($decoded));
@@ -165,11 +172,13 @@ class PublicPage extends Base
         }
 
         $hit = $first = [];
-        // Two views: every unit (a token in an attribute) and the text alone (a token split by markup).
+        // Two views: every unit but TAB, LF and CR inside a tag, which a browser drops from a URL (a token in an
+        // attribute), and the text alone (a token split by markup). A raw `>` inside an attribute value would end the
+        // tag early; core and Steward escape it as &gt;, and the all-units view reads those bytes anyway.
         foreach ([false, true] as $textOnly) {
             $units = [];
             for ($u = 0, $n = strlen($bytes); $u < $n; $u++) {
-                if (! $textOnly || $inTag[$u] === '0') {
+                if ($textOnly ? $inTag[$u] === '0' : ($inTag[$u] === '0' || ! in_array($bytes[$u], ["\t", "\n", "\r"], true))) {
                     $units[] = $u;
                 }
             }
@@ -191,8 +200,17 @@ class PublicPage extends Base
             foreach ($tokens as $token) {
                 for ($at = strpos($text, $token); $at !== false; $at = strpos($text, $token, $at + 1)) {
                     $first[$from[$units[$start[$at]]]] = true;
-                    for ($p = $start[$at], $end = $start[$at + strlen($token)]; $p < $end; $p++) {
-                        $hit[$from[$units[$p]]] = true;
+                    $end = $start[$at + strlen($token)];
+                    if ($textOnly) {
+                        // Only the token's text goes; the tags between its characters stay.
+                        for ($p = $start[$at]; $p < $end; $p++) {
+                            $hit[$from[$units[$p]]] = true;
+                        }
+                    } else {
+                        // Every unit from its first to its last, the dropped TAB/LF/CR included.
+                        for ($u = $units[$start[$at]], $last = $units[$end - 1]; $u <= $last; $u++) {
+                            $hit[$from[$u]] = true;
+                        }
                     }
                 }
             }

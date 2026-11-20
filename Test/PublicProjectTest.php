@@ -324,6 +324,11 @@ class PublicProjectTest extends Base
             'split by markup' => ['<p>'.substr($token, 0, 20).'<em>'.substr($token, 20, 5).'</em>'.substr($token, 25).'!</p>',
                 "<p>$hidden<em></em>!</p>"],
             'twice' => [$token.' '.$token, "$hidden $hidden"],
+            // Browsers drop TAB, LF and CR from a URL, written or as references; in the text they stay a gap.
+            'split by TAB, LF, CR in an attribute' => ['<a href="'.substr($token, 0, 20)."\n".substr($token, 20, 10)."\r\t"
+                .substr($token, 30, 10).'&#10;&#x9;&#13;'.substr($token, 40).'">x</a>', '<a href="'.$hidden.'">x</a>'],
+            'split by LF in the text' => ['<p>'.substr($token, 0, 30)."\n".substr($token, 30).'</p>',
+                '<p>'.substr($token, 0, 30)."\n".substr($token, 30).'</p>'],
             'a part only' => [substr($token, 1), substr($token, 1)],
             'double-encoded percent' => ['%25'.bin2hex($token[0]).substr($token, 1), '%25'.bin2hex($token[0]).substr($token, 1)],
             'escaped reference' => ['&amp;#'.ord($token[0]).';'.substr($token, 1), '&amp;#'.ord($token[0]).';'.substr($token, 1)],
@@ -333,6 +338,22 @@ class PublicProjectTest extends Base
             $this->assertSame($expected, PublicPage::hide($html, [$token, '']), $name);
         }
         $this->assertSame('<p>'.$token.'</p>', PublicPage::hide('<p>'.$token.'</p>', ['']), 'no tokens');
+    }
+
+    /** A line break inside a link's token: the browser drops it from the URL, so the link still works. */
+    public function testATokenSplitByALineBreakInALinkIsHidden(): void
+    {
+        $token = $this->token();
+        $other = $this->token($this->other);
+        $this->container['projectModel']->update(['id' => $this->project, 'description' =>
+            '[ours](https://x.test/public/board/'.substr($token, 0, 30)."\n".substr($token, 30).') and '
+            .'[theirs](?controller=BoardViewController&action=readonly&token='.substr($other, 0, 25)."\r\n".substr($other, 25).')']);
+        $html = $this->show($token)->body();
+        $this->assertStringContainsString('href="https://x.test/public/board/'.PublicPage::HIDDEN.'"', $html);
+        $this->assertStringContainsString('token='.PublicPage::HIDDEN.'"', $html);
+        foreach ([$token, $other] as $value) {
+            $this->assertTokenGone($value, str_replace(["\t", "\n", "\r"], '', $html));
+        }
     }
 
     /** A link to another project's core public board, pasted into the description, a task title or the tagline. */
