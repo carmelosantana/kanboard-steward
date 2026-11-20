@@ -9,7 +9,8 @@ has its own switch under **Settings → Steward**.
 
 Download `Steward-1.0.0.zip` from the releases page and unzip it into `plugins/Steward/` (the zip's single top-level folder is `Steward`). Requires Kanboard `>=1.2.47` and PHP
 `>=8.4` with GD. Steward adds two tables (`steward_audit`, `steward_project_page`) through core's plugin
-migrations on SQLite, MySQL, Postgres and SQL Server.
+migrations on SQLite, MySQL, Postgres and SQL Server. The SQLite schema runs in the test suite; the MySQL/MariaDB
+and PostgreSQL schemas have been run against real servers; the SQL Server schema is written but has not been run.
 
 Install manually from the release zip for now; ModMenu can install it once Steward is listed there.
 
