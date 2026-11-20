@@ -583,6 +583,47 @@ class ProjectPageSettingsTest extends Base
         $this->assertStringNotContainsString($notice, $this->act('show', $this->plain, [], true, 'GET')->body(), 'nothing stored');
     }
 
+    /**
+     * With core public access off the Public/Listed boxes are disabled and never posted: a save keeps the stored
+     * toggles, so the page and its listing come back with public access, and no public.changed row is written.
+     */
+    public function testSaveWhilePublicAccessIsOffKeepsTheStoredToggles(): void
+    {
+        $this->assertSame([], $this->settings()->save($this->project, $this->valid(['public' => true, 'listed' => true])));
+        $this->assertCount(1, $this->auditRows());
+        $this->assertTrue($this->container['projectModel']->disablePublicAccess($this->project));
+
+        $form = $this->form(['tagline' => 'Typo fixed']);
+        unset($form['public'], $form['show_names']);
+        $response = $this->act('save', $this->project, $form);
+        $this->assertArrayHasKey('Location', $response->headers());
+        $this->assertSame('Typo fixed', $this->settings()->get($this->project)['tagline']);
+        $this->assertTrue($this->settings()->storedPublic($this->project));
+        $this->assertSame(1, (int) $this->metadata($this->project)['is_listed']);
+        $this->assertStringContainsString('The public page will come back if public access is turned on again',
+            $this->act('show', $this->project, [], true, 'GET')->body());
+        $this->assertCount(1, $this->auditRows(), 'no public.changed row for toggles the form could not change');
+
+        $this->assertTrue($this->container['projectModel']->enablePublicAccess($this->project));
+        $settings = $this->settings()->get($this->project);
+        $this->assertTrue($settings['public']);
+        $this->assertTrue($settings['listed']);
+        $this->container['configModel']->save(['steward_public_pages' => '1']);
+        $this->container['memoryCache']->flush();
+        $this->assertNotNull((new \Kanboard\Plugin\Steward\Model\PublicPage($this->container))->findListed('PUB'), 'listed again');
+    }
+
+    public function testShowNamesChangeWhilePublicAccessIsOffIsAuditedAlone(): void
+    {
+        $this->assertSame([], $this->settings()->save($this->project, $this->valid(['public' => true])));
+        $this->assertTrue($this->container['projectModel']->disablePublicAccess($this->project));
+        $this->assertSame([], $this->settings()->save($this->project, $this->valid(['show_names' => true])));
+        $rows = $this->auditRows();
+        $this->assertCount(2, $rows);
+        $this->assertSame(['show_names' => [false, true]], json_decode($rows[1]['details'], true)['changes']);
+        $this->assertTrue($this->settings()->storedPublic($this->project));
+    }
+
     public function testShowEscapesStoredValues(): void
     {
         $this->assertSame([], $this->settings()->save($this->project, $this->valid([

@@ -97,6 +97,16 @@ class ProjectPageSettings extends Base
         if ($errors !== []) {
             return $errors;
         }
+        // Core public access off: the form can't change Public/Listed (disabled boxes don't post), so keep the
+        // stored toggles. The page then comes back with public access, and there's no change to audit.
+        $keepToggles = empty($project['is_public']);
+        if ($keepToggles) {
+            $stored = $this->db->table(self::TABLE)->eq('project_id', $projectId)->findOne() ?: [];
+            foreach (['public', 'listed'] as $name) {
+                $new[$name] = (string) ($stored[self::COLUMNS[$name]] ?? '0') === '1';
+                $current[$name] = $new[$name];
+            }
+        }
 
         $row = ['updated_at' => time()];
         foreach (self::COLUMNS as $name => $column) {
