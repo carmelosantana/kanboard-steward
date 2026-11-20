@@ -203,8 +203,10 @@ logs the conflict.
 - Steward's public pages show only the chosen panels; never files, comments, member lists, emails or task
   descriptions. `#N` and `@user` are plain text. Board snapshot titles are not links. Activity shows task
   created, moved, closed and reopened, without names unless **Show names** is on.
-- The project's token is replaced with `[hidden]` wherever it appears in a Steward public page (for example
-  pasted into the description), and no Steward page links to core's token URLs.
+- Every project's core token is replaced with `[hidden]` wherever it appears in a Steward public page (for
+  example a core board link pasted into the description, a task title or the tagline), in any case and also
+  when percent-encoded, written with HTML character references or split by markup. No Steward page links to
+  core's token URLs.
 - `/public/project/:token` is always `noindex`. Only `/explore` and `/explore/:identifier` of listed projects
   may be indexed. Every Steward public page sends `Referrer-Policy: no-referrer`.
 - Archived (inactive) projects are left out of the directory.

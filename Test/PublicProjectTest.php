@@ -1,6 +1,7 @@
 <?php
 require_once 'tests/units/Base.php';
 require_once __DIR__.'/support/TestName.php';
+require_once __DIR__.'/support/TokenForms.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
@@ -24,6 +25,7 @@ use Kanboard\Plugin\Steward\Plugin;
 class PublicProjectTest extends Base
 {
     use StewardTestName;
+    use StewardTokenForms;
 
     private const ADMIN = 1;
 
@@ -274,6 +276,91 @@ class PublicProjectTest extends Base
         $this->assertStringNotContainsString($token, $html);
         $this->assertStringContainsString('See '.PublicPage::HIDDEN, $html);
         $this->assertStringContainsString('/public/board/'.PublicPage::HIDDEN, $html);
+    }
+
+    public function testAPercentEncodedTokenIsHidden(): void
+    {
+        $token = $this->token();
+        $partial = substr($token, 0, 20).self::percent(substr($token, 20, 7)).substr($token, 27);
+        $this->container['projectModel']->update(['id' => $this->project, 'description' =>
+            "Whole: /public/board/".self::percent($token)."\n\nPartial: [board](?controller=BoardViewController&action=readonly&token=$partial)"]);
+        $this->container['db']->table(ProjectPageSettings::TABLE)->eq('project_id', $this->project)
+            ->update(['tagline' => 'See '.substr($token, 0, 40).self::percent(strtoupper(substr($token, 40)))]);
+        $html = $this->show($token)->body();
+        $this->assertTokenGone($token, $html);
+        $this->assertStringContainsString('Whole: /public/board/'.PublicPage::HIDDEN, $html);
+        $this->assertStringContainsString('token='.PublicPage::HIDDEN.'"', $html);
+        $this->assertStringContainsString('See '.PublicPage::HIDDEN, $html);
+    }
+
+    /** Character references, and markup in the middle of the visible text, don't get a token through either. */
+    public function testATokenWrittenWithReferencesOrSplitByMarkupIsHidden(): void
+    {
+        $token = $this->token();
+        $references = '&#x'.bin2hex($token[0]).';&#'.ord($token[1]).';'.substr($token, 2, 11).'&#37;'.bin2hex($token[13]).substr($token, 14);
+        $split = substr($token, 0, 30).'**'.substr($token, 30, 5).'**'.substr($token, 35);
+        $this->container['projectModel']->update(['id' => $this->project, 'description' => "Refs: $references\n\nSplit: $split end"]);
+        $html = $this->show($token)->body();
+        $this->assertTokenGone($token, $html);
+        $this->assertStringContainsString('Refs: '.PublicPage::HIDDEN, $html);
+        // The token's text goes, the markup around it stays.
+        $this->assertStringContainsString('Split: '.PublicPage::HIDDEN.'<strong></strong> end', $html);
+    }
+
+    /** hide() on its own: each form a browser or server reads back as the token, and what must be left alone. */
+    public function testHideCoversEveryFormAndKeepsTheRest(): void
+    {
+        $token = 'ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56';
+        $hidden = PublicPage::HIDDEN;
+        $cases = [
+            'literal, upper case' => ['<p>'.strtoupper($token).'</p>', "<p>$hidden</p>"],
+            'in an attribute' => ['<a href="/public/board/'.$token.'">x</a>', '<a href="/public/board/'.$hidden.'">x</a>'],
+            'percent, mixed case' => ['?token='.self::percent($token), '?token='.$hidden],
+            'percent, partial' => ['x'.substr($token, 0, 9).'%'.bin2hex($token[9]).substr($token, 10).'y', "x{$hidden}y"],
+            'decimal reference' => ['&#'.ord($token[0]).';'.substr($token, 1), $hidden],
+            'hex reference, leading zeros' => ['&#x0000'.bin2hex($token[0]).';'.substr($token, 1), $hidden],
+            'decimal reference, no semicolon' => ['&#0'.ord($token[0]).substr($token, 1), $hidden],
+            'reference for the percent sign' => ['&#37;'.bin2hex($token[0]).substr($token, 1), $hidden],
+            'split by markup' => ['<p>'.substr($token, 0, 20).'<em>'.substr($token, 20, 5).'</em>'.substr($token, 25).'!</p>',
+                "<p>$hidden<em></em>!</p>"],
+            'twice' => [$token.' '.$token, "$hidden $hidden"],
+            'a part only' => [substr($token, 1), substr($token, 1)],
+            'double-encoded percent' => ['%25'.bin2hex($token[0]).substr($token, 1), '%25'.bin2hex($token[0]).substr($token, 1)],
+            'escaped reference' => ['&amp;#'.ord($token[0]).';'.substr($token, 1), '&amp;#'.ord($token[0]).';'.substr($token, 1)],
+            'other text and references' => ['<p title="a&amp;b">caf&eacute; &lt;3 100%</p>', '<p title="a&amp;b">caf&eacute; &lt;3 100%</p>'],
+        ];
+        foreach ($cases as $name => [$html, $expected]) {
+            $this->assertSame($expected, PublicPage::hide($html, [$token, '']), $name);
+        }
+        $this->assertSame('<p>'.$token.'</p>', PublicPage::hide('<p>'.$token.'</p>', ['']), 'no tokens');
+    }
+
+    /** A link to another project's core public board, pasted into the description, a task title or the tagline. */
+    public function testAnotherProjectsTokenIsHidden(): void
+    {
+        $token = $this->token();
+        $other = $this->token($this->other);
+        $this->container['projectModel']->update(['id' => $this->project, 'description' =>
+            "Theirs: [board](?controller=BoardViewController&action=readonly&token=$other) and /public/board/".strtoupper($other)]);
+        $this->task('Also at /public/board/'.self::percent($other));
+        $this->container['db']->table(ProjectPageSettings::TABLE)->eq('project_id', $this->project)->update(['tagline' => 'Tag '.$other]);
+        $html = $this->show($token)->body();
+        $this->assertTokenGone($other, $html);
+        $this->assertTokenGone($token, $html);
+        $this->assertStringContainsString('token='.PublicPage::HIDDEN.'"', $html);
+        $this->assertStringContainsString('Also at /public/board/'.PublicPage::HIDDEN, $html);
+        $this->assertStringContainsString('Tag '.PublicPage::HIDDEN, $html);
+    }
+
+    /** A token left in place by a database edit, its project no longer public, is still hidden. */
+    public function testATokenOfAProjectThatIsNoLongerPublicIsHidden(): void
+    {
+        $other = $this->token($this->other);
+        $this->container['db']->table('projects')->eq('id', $this->other)->update(['is_public' => 0]);
+        $this->container['projectModel']->update(['id' => $this->project, 'description' => 'Old: '.$other]);
+        $html = $this->show($this->token())->body();
+        $this->assertTokenGone($other, $html);
+        $this->assertStringContainsString('Old: '.PublicPage::HIDDEN, $html);
     }
 
     public function testNoCommentsFilesEmailsUsernamesOrHiddenFieldsEvenWithNames(): void

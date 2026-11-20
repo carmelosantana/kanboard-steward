@@ -2,13 +2,14 @@
 namespace Kanboard\Plugin\Steward\Model;
 
 use Kanboard\Core\Base;
+use Kanboard\Model\ProjectModel;
 use Kanboard\Plugin\Steward\Helper\StewardTextHelper;
 
 /**
  * Renders Steward's anonymous pages (spec §5.3–5.5) for StewardPublicController and StewardExploreController,
- * and decides which projects are listed. Every page goes through finish(): the project tokens it names are
- * replaced with HIDDEN wherever they appear (a member may paste a core public link into the description or
- * tagline), and an indexable page drops core's robots meta. Callers check the features and send the headers.
+ * and decides which projects are listed. Every page goes through finish(): every project's core token, in any
+ * form, is replaced with HIDDEN wherever it appears (a member may paste a core public link into the description,
+ * tagline or a task title), and an indexable page drops core's robots meta. Callers check the features and send the headers.
  */
 class PublicPage extends Base
 {
@@ -18,7 +19,7 @@ class PublicPage extends Base
     /** Core's layout.php line; if core changes it, nothing is removed and the page stays noindex. */
     public const ROBOTS_META = '<meta name="robots" content="noindex,nofollow">';
 
-    /** Full HTML of $project's public page, with its own token hidden. */
+    /** Full HTML of $project's public page. */
     public function project(array $project, array $settings, bool $indexable): string
     {
         $projectId = (int) $project['id'];
@@ -43,14 +44,13 @@ class PublicPage extends Base
             'project' => ['name' => (string) $project['name']],
             'settings' => $settings,
             'panels' => $panels,
-        ], [(string) ($project['token'] ?? '')], $indexable);
+        ], $indexable);
     }
 
-    /** Full HTML of the directory: name, tagline and link of each listed project, every listed token hidden. */
+    /** Full HTML of the directory: name, tagline and link of each listed project. */
     public function directory(): string
     {
         $entries = [];
-        $tokens = [];
         foreach ($this->listed() as ['project' => $project, 'settings' => $settings]) {
             $entries[] = [
                 'name' => (string) $project['name'],
@@ -58,12 +58,11 @@ class PublicPage extends Base
                 'url' => $this->helper->url->to('StewardExploreController', 'show',
                     ['plugin' => 'Steward', 'identifier' => trim((string) $project['identifier'])]),
             ];
-            $tokens[] = (string) $project['token'];
         }
         return $this->layout('Steward:public/explore', [
             'title' => t('Explore'),
             'entries' => $entries,
-        ], $tokens, true);
+        ], true);
     }
 
     /**
@@ -112,21 +111,106 @@ class PublicPage extends Base
         return count($matches) === 1 ? $matches[0] : null;
     }
 
-    /** Hides each token (any case) and, on an indexable page, drops core's robots meta. */
-    public function finish(string $html, array $tokens, bool $indexable): string
+    /** Hides every project token (see hide()) and, on an indexable page, drops core's robots meta. */
+    public function finish(string $html, bool $indexable): string
     {
-        $tokens = array_values(array_filter($tokens, fn ($token) => $token !== ''));
-        if ($tokens !== []) {
-            $html = str_ireplace($tokens, self::HIDDEN, $html);
-        }
+        $html = self::hide($html, $this->db->table(ProjectModel::TABLE)->neq('token', '')->findAllByColumn('token'));
         if ($indexable) {
             $html = str_replace(self::ROBOTS_META, '', $html);
         }
         return $html;
     }
 
+    /**
+     * Replaces each of $tokens in $html with HIDDEN, in any case and in every form a browser shows or a server
+     * accepts: literal, written with character references (&#97; &#x61; &#37;61), percent-encoded in whole or in
+     * part, or split by markup in the visible text (abc<strong>d</strong>ef). Character references are decoded
+     * first and %XX second, as a browser and then the server would. A match in the text drops the token's
+     * characters and keeps the tags between them; the first span becomes HIDDEN.
+     */
+    public static function hide(string $html, array $tokens): string
+    {
+        $tokens = array_values(array_unique(array_filter(array_map(fn ($token) => strtolower((string) $token), $tokens),
+            fn ($token) => $token !== '')));
+        if ($tokens === []) {
+            return $html;
+        }
+
+        // Units: each decoded byte, the offset its source starts at, and whether it sits inside a tag.
+        $bytes = $inTag = '';
+        $from = $referenceEnd = [];
+        $tag = '0';
+        for ($i = 0, $length = strlen($html); $i < $length;) {
+            if ($html[$i] === '&' && preg_match('/\G&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);?/', $html, $m, 0, $i)) {
+                $reference = '&'.$m[1].';';
+                $decoded = html_entity_decode($reference, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($decoded !== $reference && $decoded !== '') {
+                    $bytes .= $decoded;
+                    $inTag .= str_repeat($tag, strlen($decoded));
+                    array_push($from, ...array_fill(0, strlen($decoded), $i));
+                    $i = $referenceEnd[$i] = $i + strlen($m[0]);
+                    continue;
+                }
+            }
+            if ($html[$i] === '<') {
+                $tag = '1';
+            }
+            $bytes .= $html[$i];
+            $inTag .= $tag;
+            $from[] = $i;
+            if ($html[$i] === '>') {
+                $tag = '0';
+            }
+            $i++;
+        }
+
+        $hit = $first = [];
+        // Two views: every unit (a token in an attribute) and the text alone (a token split by markup).
+        foreach ([false, true] as $textOnly) {
+            $units = [];
+            for ($u = 0, $n = strlen($bytes); $u < $n; $u++) {
+                if (! $textOnly || $inTag[$u] === '0') {
+                    $units[] = $u;
+                }
+            }
+            // %XX decoded: view byte k comes from $units[$start[k]] up to, not including, $units[$start[k + 1]].
+            $text = '';
+            $start = [];
+            for ($p = 0, $n = count($units); $p < $n; $p++) {
+                $start[] = $p;
+                $hex = $p + 2 < $n ? $bytes[$units[$p + 1]].$bytes[$units[$p + 2]] : '';
+                if ($bytes[$units[$p]] === '%' && ctype_xdigit($hex)) {
+                    $text .= chr((int) hexdec($hex));
+                    $p += 2;
+                } else {
+                    $text .= $bytes[$units[$p]];
+                }
+            }
+            $start[] = $n;
+            $text = strtolower($text);
+            foreach ($tokens as $token) {
+                for ($at = strpos($text, $token); $at !== false; $at = strpos($text, $token, $at + 1)) {
+                    $first[$from[$units[$start[$at]]]] = true;
+                    for ($p = $start[$at], $end = $start[$at + strlen($token)]; $p < $end; $p++) {
+                        $hit[$from[$units[$p]]] = true;
+                    }
+                }
+            }
+        }
+
+        // Each hit source span (a byte, or a whole character reference) goes; the first of each match becomes HIDDEN.
+        ksort($hit);
+        $out = '';
+        $cursor = 0;
+        foreach (array_keys($hit) as $offset) {
+            $out .= substr($html, $cursor, $offset - $cursor).(isset($first[$offset]) ? self::HIDDEN : '');
+            $cursor = $referenceEnd[$offset] ?? $offset + 1;
+        }
+        return $out.substr($html, $cursor);
+    }
+
     /** Core's layout with no app header or scripts, plus the public stylesheet (only these pages load it). */
-    private function layout(string $template, array $params, array $tokens, bool $indexable): string
+    private function layout(string $template, array $params, bool $indexable): string
     {
         $this->hook->on('template:layout:css', ['template' => 'plugins/Steward/Assets/css/public.css']);
         $html = $this->helper->layout->app($template, $params + [
@@ -135,6 +219,6 @@ class PublicPage extends Base
             // Spec §7, Decision 20: the announcement banner when set to show here; forViewer() never offers Dismiss here.
             'steward_announcement' => $this->container['stewardBanner']->forViewer(Banner::PUBLIC),
         ]);
-        return $this->finish($html, $tokens, $indexable);
+        return $this->finish($html, $indexable);
     }
 }

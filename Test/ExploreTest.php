@@ -1,5 +1,6 @@
 <?php
 require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/TokenForms.php';
 require_once __DIR__.'/../Schema/Sqlite.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
@@ -21,6 +22,8 @@ use Kanboard\Plugin\Steward\Plugin;
  */
 class ExploreTest extends Base
 {
+    use StewardTokenForms;
+
     private const DESCRIPTION_SENTINEL = 'ZZDESCRIPTIONSENTINELZZ';
     private const LINK_URL = 'https://example.com/zzlinksentinel';
 
@@ -246,6 +249,33 @@ class ExploreTest extends Base
         $this->assertStringNotContainsString(strtoupper($token), $html);
         $this->assertStringContainsString('Tag '.PublicPage::HIDDEN, $html);
         $this->assertStringContainsString('/public/board/'.PublicPage::HIDDEN, $html);
+    }
+
+    /** Other projects' tokens, listed or not, public or not, in any encoding: hidden on the listed page and the directory. */
+    public function testListedPageAndDirectoryHideEveryProjectsToken(): void
+    {
+        $id = $this->ids['alpha listed'];
+        $unlisted = $this->token('Unlisted');
+        $coreOff = $this->token('Core off');
+        $zeta = $this->token('Zeta <listed>');
+        $own = $this->token('alpha listed');
+        $this->container['projectModel']->update(['id' => $id, 'description' =>
+            "Theirs: [board](?controller=BoardViewController&action=readonly&token=$unlisted)\n\n"
+            ."Old: /public/board/$coreOff\n\nZeta: /public/board/".self::percent($zeta)."\n\nOwn: ".self::percent(strtoupper($own))]);
+        $this->db()->table(ProjectPageSettings::TABLE)->eq('project_id', $id)
+            ->update(['tagline' => 'Tag '.substr($unlisted, 0, 50).self::percent(substr($unlisted, 50)).' '.$coreOff]);
+
+        $pages = ['listed' => $this->listed('ALPHA')->body(), 'directory' => $this->directory()->body()];
+        foreach ($pages as $html) {
+            foreach ([$unlisted, $coreOff, $zeta, $own] as $token) {
+                $this->assertTokenGone($token, $html);
+            }
+            $this->assertStringContainsString('Tag '.PublicPage::HIDDEN.' '.PublicPage::HIDDEN, $html);
+        }
+        $this->assertStringContainsString('token='.PublicPage::HIDDEN.'"', $pages['listed']);
+        $this->assertStringContainsString('Old: /public/board/'.PublicPage::HIDDEN, $pages['listed']);
+        $this->assertStringContainsString('Zeta: /public/board/'.PublicPage::HIDDEN, $pages['listed']);
+        $this->assertStringContainsString('Own: '.PublicPage::HIDDEN, $pages['listed']);
     }
 
     public function testDisablingCoreAccessTakesTheListedPageDownAndReEnablingBringsItBack(): void
