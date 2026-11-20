@@ -146,7 +146,7 @@ Every request while switched is classified by `(controller, action)`:
 |---|---|---|
 | read | dashboards, boards, task and project views, search | allowed |
 | write-allowed | everyday work: board moves, tasks, subtasks, comments, task files, links, tags, project settings the user could already change | allowed, audited as `switch.action` (method, controller, action, task and project id) **before** it runs; if that row can't be written the answer is 503 and the action doesn't run |
-| blocked | password, 2FA, API token, email, username, avatar, sessions, OAuth linking, user/config/plugin admin pages, Steward's own settings | 403 "not while switched", read and write |
+| blocked | password, 2FA, API token, email, username, avatar, sessions, OAuth linking, the user summary and public access pages (they show the user's RSS/iCal links), user/config/plugin admin pages, Steward's own settings | 403 "not while switched", read and write |
 
 Every core action of Kanboard 1.2.47 and 1.2.57 is in the table; anything not in it is blocked. Core mutates on GET in places, so
 those actions are classified as writes whatever the method.

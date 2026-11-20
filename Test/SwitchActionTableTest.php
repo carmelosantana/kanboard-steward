@@ -95,6 +95,18 @@ class SwitchActionTableTest extends Base
         }
     }
 
+    /**
+     * The target's RSS/iCal token is theirs: the core pages that render it (user_view/show.php and share.php on 1.2.47
+     * and 1.2.57) are refused. The token-keyed feeds themselves only answer to a caller who already has the token.
+     */
+    public function testPagesShowingTheUsersFeedTokenAreBlocked(): void
+    {
+        foreach (['UserViewController::show', 'UserViewController::share'] as $pair) {
+            $this->assertSame('blocked', SwitchActionTable::CORE[$pair], $pair);
+        }
+        $this->assertSame('read', SwitchActionTable::CORE['UserViewController::profile']);
+    }
+
     /** Core mutates on GET: never classified read. */
     public function testGetMutationsAreWrites(): void
     {

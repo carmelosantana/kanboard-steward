@@ -396,7 +396,7 @@ final class SwitchActionTable
         'UserStatusController::confirmDisable' => 'blocked',
         'UserStatusController::disable' => 'blocked',
         'UserViewController::profile' => 'read',
-        'UserViewController::show' => 'read',
+        'UserViewController::show' => 'blocked',          // renders the user's RSS/iCal token when public access is on
         'UserViewController::timesheet' => 'read',
         'UserViewController::passwordReset' => 'blocked',
         'UserViewController::lastLogin' => 'blocked',     // sign-in history with IP addresses

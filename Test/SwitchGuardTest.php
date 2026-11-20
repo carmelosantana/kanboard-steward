@@ -11,6 +11,7 @@ use Kanboard\Core\Http\Router;
 use Kanboard\Core\Log\Logger;
 use Kanboard\Core\Queue\JobHandler;
 use Kanboard\Core\Security\Role;
+use Kanboard\Core\Security\Token;
 use Kanboard\Core\Session\SessionManager;
 use Kanboard\Job\BaseJob;
 use Kanboard\Model\UserModel;
@@ -375,6 +376,19 @@ class SwitchGuardTest extends Base
         $this->route('GET', ['controller' => 'BoardViewController', 'action' => 'somethingNew']);
         $this->assertTrue($this->runGuard());
         $this->assertSame(403, $this->sent[1]);
+    }
+
+    /** With the target's public access on, their summary page would show the RSS/iCal token: refused. */
+    public function testTargetsSummaryPageWithTheFeedTokenIsRefused(): void
+    {
+        $token = Token::getToken();
+        $this->assertTrue($this->container['userModel']->update(['id' => $this->ana, 'token' => $token]));
+        $this->route('GET', ['controller' => 'UserViewController', 'action' => 'show', 'user_id' => $this->ana]);
+        $this->assertTrue($this->runGuard());
+        $this->assertSame(403, $this->sent[1]);
+        $this->assertStringNotContainsString($token, $this->sent[0]);
+        $this->route('GET', ['controller' => 'UserViewController', 'action' => 'profile', 'user_id' => $this->ana]);
+        $this->assertFalse($this->runGuard());
     }
 
     public function testControllerNamesAreMatchedWhateverTheirCase(): void
