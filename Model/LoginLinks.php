@@ -74,20 +74,22 @@ class LoginLinks extends Base
     /**
      * Signs the browser in as the link's user: null on success, else the reason (`signed_in`, `malformed`,
      * `unknown`, `used`, `expired`, `target_invalid`, `audit_failed`). The link is spent by the atomic claim, so a
-     * target that changed since the mint, or a failed audit write, still uses it up. Every failure but
-     * `signed_in` (which touches no link) writes `login_link.failed`.
+     * target that changed since the mint, or a failed audit write, still uses it up. `used`, `expired`,
+     * `target_invalid` and `audit_failed` write `login_link.failed`; `signed_in`, `malformed` and `unknown` write nothing.
      */
     public function redeem(string $token): ?string
     {
         if ($this->signedIn()) {
             return 'signed_in';
         }
+        // Decision 20: malformed and unknown tokens are not audited; nothing ties them to a link or a user, and
+        // auditing them would let anyone drive audit writes.
         if (! preg_match(self::TOKEN, $token)) {
-            return $this->fail('malformed', null);
+            return 'malformed';
         }
         $row = $this->findByToken($token);
         if ($row === null) {
-            return $this->fail('unknown', null);
+            return 'unknown';
         }
         $id = (int) $row['id'];
         $userId = (int) $row['user_id'];

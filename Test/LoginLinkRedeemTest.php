@@ -260,7 +260,18 @@ class LoginLinkRedeemTest extends StewardTestCase
     public function testUnknownTokenFails(): void
     {
         $this->assertSame('unknown', $this->links()->redeem(str_repeat('0', 64)));
-        $this->assertSame([['reason' => 'unknown', 'subject' => null, 'actor' => null]], $this->failures());
+        $this->assertSame([], $this->failures(), 'decision 20: nothing to tie it to, so no audit row');
+    }
+
+    /** Decision 20: anonymous junk can't drive audit writes. */
+    public function testFiftyJunkRedeemsWriteNoAuditRows(): void
+    {
+        $before = $this->container['db']->table(AuditLog::TABLE)->count();
+        for ($i = 0; $i < 50; $i++) {
+            $junk = $i % 2 === 0 ? bin2hex(random_bytes(32)) : 'junk-'.$i;
+            $this->assertSame($i % 2 === 0 ? 'unknown' : 'malformed', $this->links()->redeem($junk), (string) $i);
+        }
+        $this->assertSame($before, $this->container['db']->table(AuditLog::TABLE)->count());
     }
 
     public static function malformedTokens(): array
@@ -291,7 +302,7 @@ class LoginLinkRedeemTest extends StewardTestCase
 
         $this->assertSame(0, $this->sessionUserId());
         $this->assertNull($this->container['db']->table(LoginLinks::TABLE)->findOne()['used_at'], 'no row touched');
-        $this->assertSame([['reason' => 'malformed', 'subject' => null, 'actor' => null]], $this->failures());
+        $this->assertSame([], $this->failures(), 'decision 20: malformed tokens are not audited');
     }
 
     public static function targetChanges(): array
@@ -416,7 +427,9 @@ class LoginLinkRedeemTest extends StewardTestCase
         $pdo->commit();
         unset($pdo, $st);
 
-        $this->assertSame('unknown', $this->links()->redeem(str_repeat('1', 64)));
+        $token = $this->mintFor();
+        $this->container['db']->table(LoginLinks::TABLE)->eq('token_hash', hash('sha256', $token))->update(['expires_at' => time() - 1]);
+        $this->assertSame('expired', $this->links()->redeem($token));
 
         $this->assertSame(AuditLog::FAILURE_CAP, $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login_link.failed')->count());
         $this->assertSame(1, $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login.failure')->count());
