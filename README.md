@@ -34,12 +34,14 @@ on.
 | Explore | off | — | A public directory at `/explore` and clean URLs `/explore/:identifier` for listed projects. |
 | Test email | off | — | **Send test email** on core's Settings → Email page and in Steward's settings. |
 | Announcement banner | off | Message, level, schedule, where it shows (on **Steward banner**) | A site-wide banner. |
+| Sign-in links | off | — | An admin can make a one-time link that signs a user in. |
 
 The **Audit log** section sets retention, 7–3650 days (default 180). The audit log page is always
 available to admins as **Settings → Steward audit log**.
 
 Settings save accepts only Steward's known keys. Ops kill switch: `define('STEWARD_DISABLE_SWITCHING',
-true);` in `config.php` turns switching off whatever the settings page says.
+true);` in `config.php` turns switching off whatever the settings page says, and
+`define('STEWARD_DISABLE_LOGIN_LINKS', true);` does the same for sign-in links.
 
 ### Markdown
 
@@ -112,6 +114,31 @@ board or task views). If dismissible, a signed-in user's dismissal lasts until t
 change. A non-dismissible banner shows to everyone, whatever they dismissed earlier. Defaults: dismissible on;
 login page and public pages off.
 
+### Sign-in links
+
+For a user who can't sign in (a lost password, a new account), an admin can make a link that signs that user
+in once. On the user's profile, **Sign-in link** creates one and shows it a single time, with a copy button
+and the time it stops working. Send it to the user however you like.
+
+- **Who can make one:** admins, after their own two-factor step, and not while switched to another user.
+- **For whom:** active users who are not admins, not yourself, with a local account. LDAP and other
+  directory users are refused, as are users locked out after failed logins.
+- **15 minutes, once.** A link works for 15 minutes and only once. Making a new link for the same user
+  cancels the earlier one. An admin can make at most 10 links an hour.
+- **Opening the link** shows "Sign in to *site* as *username*" with a **Sign in** button; only the button
+  uses the link, so a chat or mail preview that opens it doesn't spend it. Someone already signed in in that
+  browser is asked to sign out first.
+- **Two-factor authentication** is still asked for: the link replaces the password, not the code.
+- **Application URL required.** Links are built from **Settings → Application URL**, never from the request's
+  host; with no Application URL set, no link is made.
+- An unknown, used, expired or mistyped link always gets the same page: "This sign-in link is invalid or has
+  expired." Only a hash of each link is stored.
+
+The feature is off by default; turn it on under **Settings → Steward**. `STEWARD_DISABLE_LOGIN_LINKS` in
+`config.php`, or reverse-proxy authentication (`REVERSE_PROXY_AUTH`), keeps it off whatever the setting says.
+Making, refusing, using and failed links are audited as `login_link.created`, `login_link.refused`,
+`login_link.used` and `login_link.failed`.
+
 ## Security model
 
 ### Switching rules
@@ -172,7 +199,8 @@ Table `steward_audit`; the page (admins only) is newest first with filters for e
 switch, read-only. Each switch's rows share a switch id; the page shows its first 8 characters, linked to that
 switch's rows. Events: `switch.start`, `switch.end`, `switch.expired`, `switch.revoked`, `switch.refused`,
 `switch.action`, `login.success`, `login.failure` (username as typed, up to 64 characters; failures capped at
-10,000 rows), `branding.changed`, `banner.changed`, `email.test`, `settings.changed` (keys, never secret
+10,000 rows), `login_link.created`, `login_link.refused`, `login_link.used`, `login_link.failed` (capped like
+`login.failure`), `branding.changed`, `banner.changed`, `email.test`, `settings.changed` (keys, never secret
 values) and `public.changed`. API logins: failures are recorded (`source=api`), successes are not. Rows older
 than the retention period are pruned at most once a day.
 
