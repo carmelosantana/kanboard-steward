@@ -49,8 +49,8 @@ class LoginLinks extends Base
     }
 
     /**
-     * The user a live link for $token would sign in, for the confirm page; null when redeem() would fail now
-     * (whatever the browser's own state). Read-only: never claims the link, never audits.
+     * The user a live link for $token would sign in, for the confirm page (`id`, `username`, `name` only); null
+     * when redeem() would fail now (whatever the browser's own state). Read-only: never claims the link, never audits.
      */
     public function peek(string $token): ?array
     {
@@ -62,7 +62,11 @@ class LoginLinks extends Base
             return null;
         }
         $user = $this->userModel->getById((int) $row['user_id']) ?: null;
-        return $this->targetRefusal($user) === null ? $user : null;
+        if ($this->targetRefusal($user) !== null) {
+            return null;
+        }
+        // Only what the confirm page shows: the full row holds the password hash.
+        return ['id' => (int) $user['id'], 'username' => (string) $user['username'], 'name' => (string) ($user['name'] ?? '')];
     }
 
     /**
@@ -127,7 +131,7 @@ class LoginLinks extends Base
             $target = $targetId > 0 ? ($this->userModel->getById($targetId) ?: null) : null;
             $reason = $this->refusalFor($target);
         }
-        if ($reason === null && trim((string) $this->configModel->get('application_url', '')) === '') {
+        if ($reason === null && $this->appUrl() === '') {
             $reason = 'no_app_url';
         }
         $now = time();
@@ -168,7 +172,17 @@ class LoginLinks extends Base
     /** The link for $token under Kanboard's configured Application URL; never the request's Host header. */
     public function url(string $token): string
     {
-        return rtrim((string) $this->configModel->get('application_url', ''), '/').'/login-link/'.$token;
+        return $this->appUrl().'/login-link/'.$token;
+    }
+
+    /**
+     * application_url as url() and mint()'s no_app_url check both read it: trimmed, no trailing slash. Core's
+     * ConfigModel appends '/' to a value that doesn't end in one, so "https://kb.example/ " is stored as
+     * "https://kb.example/ /": strip slashes and whitespace from the end together.
+     */
+    private function appUrl(): string
+    {
+        return rtrim(trim((string) $this->configModel->get('application_url', '')), "/ \t\n\r\0\x0B");
     }
 
     /** Why $user can't be signed in by a link (decisions 13 and 14), or null. */

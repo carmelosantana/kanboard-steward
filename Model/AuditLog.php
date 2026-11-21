@@ -19,6 +19,8 @@ class AuditLog extends Base
     public const LAST_PRUNE = 'steward_audit_last_prune';
     /** Events anyone can cause from a public page; each keeps only its newest FAILURE_CAP rows, on its own. */
     public const FAILURE_EVENTS = ['login.failure', 'login_link.failed'];
+    /** @deprecated 1.1: use FAILURE_EVENTS. Kept for plugins that read it in 1.0. */
+    public const FAILURE_EVENT = 'login.failure';
     public const FAILURE_CAP = 10000;
     public const DETAILS_MAX = 4096;
     public const USER_AGENT_MAX = 255;

@@ -192,6 +192,14 @@ class LoginLinkRedeemTest extends StewardTestCase
         $this->assertSame($this->ana, $this->sessionUserId());
     }
 
+    /** The confirm page needs a name, nothing more: never the password hash or any other column. */
+    public function testPeekReturnsOnlyIdUsernameAndName(): void
+    {
+        $token = $this->mintFor();
+
+        $this->assertSame(['id' => $this->ana, 'username' => 'ana', 'name' => 'Ana Example'], $this->links()->peek($token));
+    }
+
     public function testPeekIsNullForEveryDeadLink(): void
     {
         $this->assertNull($this->links()->peek(str_repeat('a', 64)), 'unknown');

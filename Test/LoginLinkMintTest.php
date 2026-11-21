@@ -348,6 +348,18 @@ class LoginLinkMintTest extends StewardTestCase
         $this->assertSame([], $this->rows());
     }
 
+    /** url() and the no_app_url check read application_url the same way (core's save appends '/' after any whitespace). */
+    public function testWhitespaceAroundApplicationUrlIsIgnored(): void
+    {
+        $token = str_repeat('ab', 32);
+        $this->setAppUrl(" https://kb.example/kanboard/ \n");
+        $this->assertSame('https://kb.example/kanboard/login-link/'.$token, $this->links()->url($token));
+        $this->assertStringStartsWith('https://kb.example/kanboard/login-link/', $this->links()->mint($this->ana)['url']);
+
+        $this->setAppUrl(" \t ");
+        $this->assertSame(['ok' => false, 'reason' => 'no_app_url'], $this->links()->mint($this->ana));
+    }
+
     public function testUrlUsesApplicationUrl(): void
     {
         $token = str_repeat('ab', 32);

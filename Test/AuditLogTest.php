@@ -108,6 +108,13 @@ class AuditLogTest extends StewardTestCase
         $this->assertSame(3, substr_count($src, 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'));
     }
 
+    /** 1.0's public constant stays for plugins that read it; the list is what Steward caps. */
+    public function testFailureEventAliasIsKept(): void
+    {
+        $this->assertSame('login.failure', AuditLog::FAILURE_EVENT);
+        $this->assertContains(AuditLog::FAILURE_EVENT, AuditLog::FAILURE_EVENTS);
+    }
+
     public function testInternalWriteRoundTrips(): void
     {
         $switchId = $this->audit()->newSwitchId();
