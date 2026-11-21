@@ -6,6 +6,12 @@ use Kanboard\Core\Base;
 /** Container key `stewardFeatures`: which Steward features are on. */
 class FeatureFlags extends Base
 {
+    /** Features that config.php can turn off, each by its own constant. */
+    private const KILL_SWITCHES = [
+        'switching' => 'STEWARD_DISABLE_SWITCHING',
+        'login_links' => 'STEWARD_DISABLE_LOGIN_LINKS',
+    ];
+
     public function isEnabled(string $feature): bool
     {
         if (! in_array($feature, SettingsSchema::FEATURES, true)) {
@@ -17,12 +23,6 @@ class FeatureFlags extends Base
         $key = SettingsSchema::featureKey($feature);
         return $this->configModel->get($key, SettingsSchema::defaults()[$key]) === '1';
     }
-
-    /** Features that config.php can turn off, each by its own constant. */
-    private const KILL_SWITCHES = [
-        'switching' => 'STEWARD_DISABLE_SWITCHING',
-        'login_links' => 'STEWARD_DISABLE_LOGIN_LINKS',
-    ];
 
     /** Ops kill switch in config.php, or reverse-proxy auth (the proxy, not Kanboard, owns identity). */
     public function forcedOff(string $feature): bool

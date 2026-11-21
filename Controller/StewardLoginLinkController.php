@@ -35,6 +35,7 @@ class StewardLoginLinkController extends BaseController
         }
         $this->checkCSRFForm();
 
+        // The route's user_id only makes the URL pretty; the form's user_id is the one used.
         $raw = $this->request->getRawValue('user_id');
         $targetId = is_string($raw) && ctype_digit($raw) ? (int) $raw : 0;
 
@@ -105,6 +106,7 @@ class StewardLoginLinkController extends BaseController
             'title' => t('Sign in'),
             'no_layout' => true,
             'steward_site_name' => $this->siteName(),
+            'steward_brand' => $this->brand(),
             'steward_link_user' => $user,
             'steward_link_token' => $token,
         ]));
@@ -171,8 +173,22 @@ class StewardLoginLinkController extends BaseController
             'title' => t('Sign in'),
             'no_layout' => true,
             'steward_site_name' => $this->siteName(),
+            'steward_brand' => $this->brand(),
             'steward_message' => $message,
         ]), $status);
+    }
+
+    /**
+     * Steward's login logo params (as Plugin::applyBranding() passes them) while branding is on, else null. Rendered
+     * directly: the login-form hooks would bring in other plugins' login-page extras (OAuth buttons, taglines).
+     */
+    private function brand(): ?array
+    {
+        if (! $this->container['stewardFeatures']->isEnabled('branding')) {
+            return null;
+        }
+        $branding = $this->container['stewardBranding'];
+        return ['steward_logo_url' => $branding->imageUrl('logo'), 'steward_site_name' => $branding->siteName()];
     }
 
     /** Steward's branded site name while branding is on, else Kanboard's. */

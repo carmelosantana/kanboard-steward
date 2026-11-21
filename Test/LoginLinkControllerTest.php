@@ -397,6 +397,50 @@ class LoginLinkControllerTest extends StewardTestCase
         $this->assertStringContainsString('Sign in to Acme &lt;Boards&gt; as', $this->body);
     }
 
+    /** Other plugins' login-form hooks (OAuth buttons, taglines) belong to the login page, not to these pages. */
+    public function testLinkPagesRenderNoForeignLoginFormHooks(): void
+    {
+        foreach (['template:auth:login-form:before', 'template:auth:login-form:after'] as $hook) {
+            $this->container['hook']->on($hook, [
+                'template' => 'Steward:auth/logo',
+                'callable' => fn () => ['steward_logo_url' => '', 'steward_site_name' => 'FOREIGN-HOOK-MARKER'],
+            ]);
+        }
+        $token = $this->mintForAna();
+
+        $this->confirm($token);
+        $this->assertSame(200, $this->status);
+        $this->assertStringContainsString('<strong>ana</strong>', $this->body);
+        $this->assertStringNotContainsString('FOREIGN-HOOK-MARKER', $this->body, 'confirm');
+
+        $this->confirm(str_repeat('0', 64));
+        $this->assertInvalidPage('invalid');
+        $this->assertStringNotContainsString('FOREIGN-HOOK-MARKER', $this->body, 'invalid');
+
+        $this->loginAs($this->boss);
+        $this->confirm($token);
+        $this->assertStringContainsString(htmlspecialchars(self::SIGNED_IN, ENT_QUOTES), $this->body);
+        $this->assertStringNotContainsString('FOREIGN-HOOK-MARKER', $this->body, 'signed in');
+    }
+
+    public function testLinkPagesShowStewardsBrandOnlyWithBrandingOn(): void
+    {
+        $this->container['configModel']->save(['steward_site_name' => 'Acme Boards']);
+        $this->container['memoryCache']->flush();
+        $token = $this->mintForAna();
+
+        $this->confirm($token);
+        $this->assertStringNotContainsString('steward-login-brand', $this->body, 'branding off');
+
+        $this->container['configModel']->save(['steward_branding' => '1']);
+        $this->container['memoryCache']->flush();
+
+        $this->confirm($token);
+        $this->assertStringContainsString('<h1 class="steward-login-name">Acme Boards</h1>', $this->body, 'confirm');
+        $this->confirm(str_repeat('0', 64));
+        $this->assertStringContainsString('<h1 class="steward-login-name">Acme Boards</h1>', $this->body, 'invalid');
+    }
+
     public function testConfirmWhileSignedInShowsTheSignedInPage(): void
     {
         $token = $this->mintForAna();
