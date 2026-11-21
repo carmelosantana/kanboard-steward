@@ -313,7 +313,7 @@ class LoginLinkMintTest extends StewardTestCase
         $this->assertSame(['in_transaction' => true, 'live' => 1], $seen, 'the audit row is written inside the transaction, after the kill and the insert');
         $this->assertFalse($db->getConnection()->inTransaction(), 'and the transaction is closed');
         $sql = array_values(array_slice($db->getLogMessages(), $before));
-        $lock = $this->firstIndex($sql, fn ($q) => str_contains($q, 'FOR UPDATE') || str_contains($q, 'UPDLOCK')
+        $lock = $this->firstIndex($sql, fn ($q) => str_contains($q, 'FOR UPDATE') || str_contains($q, 'FOR NO KEY UPDATE') || str_contains($q, 'UPDLOCK')
             || preg_match('/^UPDATE\W+steward_login_link\W+SET\W+user_id\W*=\W*\W?user_id/i', $q));
         $this->assertNotNull($lock, "no lock statement in:\n".implode("\n", $sql));
         if (DB_DRIVER === 'sqlite') {
