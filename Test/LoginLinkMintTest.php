@@ -284,6 +284,100 @@ class LoginLinkMintTest extends StewardTestCase
         $this->assertSame($bobs['expires_at'], (int) $byHash[hash('sha256', $this->tokenOf($bobs))]['expires_at'], "another user's link is untouched");
     }
 
+    /**
+     * Decision 18. The lock on the actor and target rows is the first statement of mint's transaction (a write on
+     * SQLite, so the database's single writer lock is taken before anything is read); the rate-limit count, the kill,
+     * the insert and the created audit row all follow it, and the audit row is written before the commit.
+     */
+    public function testMintRunsInOneTransactionThatStartsWithTheUserLock(): void
+    {
+        $this->links()->mint($this->ana);
+        $db = $this->container['db'];
+        $seen = null;
+        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use ($db, &$seen) {
+            if ($row['event'] === 'login_link.created') {
+                $seen = [
+                    'in_transaction' => $db->getConnection()->inTransaction(),
+                    'live' => $db->table(LoginLinks::TABLE)->eq('user_id', $this->ana)->isNull('used_at')->gt('expires_at', time())->count(),
+                ];
+            }
+        });
+        $db->getStatementHandler()->withLogging();
+        $before = count($db->getLogMessages());
+
+        $this->assertTrue($this->links()->mint($this->ana)['ok']);
+
+        $this->assertSame(['in_transaction' => true, 'live' => 1], $seen, 'the audit row is written inside the transaction, after the kill and the insert');
+        $this->assertFalse($db->getConnection()->inTransaction(), 'and the transaction is closed');
+        $sql = array_values(array_slice($db->getLogMessages(), $before));
+        $lock = $this->firstIndex($sql, fn ($q) => str_contains($q, 'FOR UPDATE') || str_contains($q, 'UPDLOCK')
+            || preg_match('/^UPDATE\W+steward_login_link\W+SET\W+user_id\W*=\W*\W?user_id/i', $q));
+        $this->assertNotNull($lock, "no lock statement in:\n".implode("\n", $sql));
+        if (DB_DRIVER === 'sqlite') {
+            $this->assertMatchesRegularExpression('/^UPDATE/i', $sql[$lock], 'on SQLite the lock is a write');
+        }
+        foreach ([
+            'rate-limit count' => fn ($q) => str_contains($q, 'COUNT') && str_contains($q, 'steward_login_link'),
+            'kill' => fn ($q) => str_starts_with($q, 'UPDATE') && str_contains($q, 'expires_at') && str_contains($q, 'steward_login_link'),
+            'insert' => fn ($q) => str_starts_with($q, 'INSERT') && str_contains($q, 'steward_login_link'),
+            'audit' => fn ($q) => str_starts_with($q, 'INSERT') && str_contains($q, AuditLog::TABLE),
+        ] as $what => $match) {
+            $at = $this->firstIndex(array_slice($sql, $lock + 1), $match);
+            $this->assertNotNull($at, "$what after the lock in:\n".implode("\n", $sql));
+        }
+        $this->assertNull($this->firstIndex(array_slice($sql, 0, $lock), fn ($q) => str_contains($q, 'steward_login_link')),
+            "nothing touches the link table before the lock:\n".implode("\n", $sql));
+    }
+
+    private function firstIndex(array $list, callable $match): ?int
+    {
+        foreach ($list as $i => $item) {
+            if ($match((string) $item)) {
+                return $i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Decision 18 on a real server: while one mint's transaction is open, a second connection can't take the target
+     * user's row (FOR UPDATE NOWAIT fails), so a concurrent mint waits for the commit and then sees the new link.
+     * SQLite has one writer at a time; the test above proves its lock is a write at the start of the transaction.
+     */
+    public function testAConcurrentMintWaitsForTheUserLock(): void
+    {
+        if (! in_array(DB_DRIVER, ['mysql', 'postgres'], true)) {
+            $this->assertSame('sqlite', DB_DRIVER);
+            return;
+        }
+        $dsn = (DB_DRIVER === 'mysql' ? 'mysql' : 'pgsql').':host='.DB_HOSTNAME.';dbname='.DB_NAME.(DB_PORT ? ';port='.DB_PORT : '');
+        $other = new \PDO($dsn, DB_USERNAME, DB_PASSWORD, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+        $tryLock = function () use (&$other): bool {
+            $other->beginTransaction();
+            try {
+                $other->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE NOWAIT')->execute([$this->ana]);
+                return true;
+            } catch (\PDOException) {
+                return false;
+            } finally {
+                $other->rollBack();
+            }
+        };
+        $this->assertTrue($tryLock(), 'precondition: the row is free');
+
+        $during = null;
+        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use ($tryLock, &$during) {
+            if ($row['event'] === 'login_link.created') {
+                $during = $tryLock();
+            }
+        });
+        $this->assertTrue($this->links()->mint($this->ana)['ok']);
+
+        $this->assertFalse($during, 'the target row is locked while the mint is open');
+        $this->assertTrue($tryLock(), 'and free after the commit');
+        $other = null;
+    }
+
     public function testRemintLeavesUsedLinksAlone(): void
     {
         $first = $this->links()->mint($this->ana);

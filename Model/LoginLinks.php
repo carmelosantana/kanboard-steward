@@ -7,6 +7,8 @@ use Kanboard\Core\Security\AuthenticationManager;
 use Kanboard\Core\Security\Role;
 use Kanboard\Event\AuthSuccessEvent;
 use Kanboard\Model\RememberMeSessionModel;
+use PDO;
+use Throwable;
 
 /**
  * Container key `stewardLoginLinks`: one-time sign-in links (Steward 1.1). Only the token's sha256 is stored;
@@ -134,37 +136,52 @@ class LoginLinks extends Base
         if ($reason === null && $this->appUrl() === '') {
             $reason = 'no_app_url';
         }
-        $now = time();
-        if ($reason === null && $this->mintedSince($actorId, $now - self::RATE_WINDOW) >= self::RATE_LIMIT) {
-            $reason = 'rate_limited';
-        }
         if ($reason !== null) {
             return $this->refuse($reason, $actorId, $targetId);
         }
 
-        // Kill this user's live links rather than delete them: the rate limit still counts them.
-        $this->db->table(self::TABLE)
-            ->eq('user_id', $targetId)->isNull('used_at')->gt('expires_at', $now)
-            ->update(['expires_at' => $now]);
+        // Decision 18: one transaction, locked on the actor and the target first, so two concurrent mints for a
+        // user can't both cancel the old links before either inserts, and one admin's mints can't race the rate
+        // limit. A refusal rolls back and is audited after the rollback (PicoDb rolls back on any SQL error too).
+        $this->db->startTransaction();
+        try {
+            $this->lockUsers($actorId, $targetId);
+            $now = time();
+            if ($this->mintedSince($actorId, $now - self::RATE_WINDOW) >= self::RATE_LIMIT) {
+                $this->db->cancelTransaction();
+                return $this->refuse('rate_limited', $actorId, $targetId);
+            }
+
+            // Kill this user's live links rather than delete them: the rate limit still counts them.
+            $this->db->table(self::TABLE)
+                ->eq('user_id', $targetId)->isNull('used_at')->gt('expires_at', $now)
+                ->update(['expires_at' => $now]);
+
+            $token = bin2hex(random_bytes(32));
+            $expiresAt = $now + self::LIFETIME;
+            $id = (int) $this->db->table(self::TABLE)->persist([
+                'user_id' => $targetId,
+                'token_hash' => hash('sha256', $token),
+                'created_by' => $actorId,
+                'created_at' => $now,
+                'expires_at' => $expiresAt,
+            ]);
+            if ($id <= 0) {
+                $this->db->cancelTransaction();
+                return $this->refuse('store_failed', $actorId, $targetId);
+            }
+
+            if (! $this->stewardAudit->logInternal('login_link.created', $actorId, $targetId, ['link_id' => $id, 'expires_at' => $expiresAt])) {
+                $this->db->cancelTransaction();
+                return $this->refuse('audit_failed', $actorId, $targetId);
+            }
+            $this->db->closeTransaction();
+        } catch (Throwable $e) {
+            $this->db->cancelTransaction();
+            throw $e;
+        }
+        // Housekeeping needs no lock: kept out of the transaction so it never holds up another user's mint.
         $this->db->table(self::TABLE)->lt('expires_at', $now - self::KEEP_EXPIRED)->remove();
-
-        $token = bin2hex(random_bytes(32));
-        $expiresAt = $now + self::LIFETIME;
-        $id = (int) $this->db->table(self::TABLE)->persist([
-            'user_id' => $targetId,
-            'token_hash' => hash('sha256', $token),
-            'created_by' => $actorId,
-            'created_at' => $now,
-            'expires_at' => $expiresAt,
-        ]);
-        if ($id <= 0) {
-            return $this->refuse('store_failed', $actorId, $targetId);
-        }
-
-        if (! $this->stewardAudit->logInternal('login_link.created', $actorId, $targetId, ['link_id' => $id, 'expires_at' => $expiresAt])) {
-            $this->db->table(self::TABLE)->eq('id', $id)->remove();
-            return $this->refuse('audit_failed', $actorId, $targetId);
-        }
 
         return ['ok' => true, 'url' => $this->url($token), 'expires_at' => $expiresAt];
     }
@@ -206,6 +223,25 @@ class LoginLinks extends Base
             $this->userLockingModel->isLocked((string) ($user['username'] ?? '')) => 'locked',
             default => null,
         };
+    }
+
+    /**
+     * Locks the actor's and the target's user rows until the transaction ends (decision 18), lower id first so two
+     * mints never wait on each other in a cycle. SQLite has no row locks but one writer at a time: a write as the
+     * transaction's first statement takes that lock, and a second mint's write waits for the commit (busy timeout).
+     */
+    private function lockUsers(int $actorId, int $targetId): void
+    {
+        $ids = array_values(array_unique([$actorId, $targetId]));
+        sort($ids);
+        $in = implode(', ', array_fill(0, count($ids), '?'));
+        $sql = match ($this->db->getConnection()->getAttribute(PDO::ATTR_DRIVER_NAME)) {
+            'sqlite' => 'UPDATE '.self::TABLE.' SET user_id = user_id WHERE user_id IN ('.$in.')',
+            'mysql', 'pgsql' => 'SELECT id FROM users WHERE id IN ('.$in.') ORDER BY id FOR UPDATE',
+            // SQL Server (sqlsrv, dblib, odbc): an update lock held to the end of the transaction.
+            default => 'SELECT id FROM users WITH (UPDLOCK, ROWLOCK) WHERE id IN ('.$in.')',
+        };
+        $this->db->execute($sql, $ids);
     }
 
     private function findByToken(string $token): ?array
