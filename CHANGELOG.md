@@ -10,7 +10,7 @@
   for. Only active, non-admin users who are not LDAP users, not locked out and not set to **Disallow login
   form**; at most 10 links per admin per hour. Making links for a user is serialised, so two at once still
   leave only one live link. Links are built from the Application URL, which must be set, and follow
-  Kanboard's URL rewriting setting (query-string links when it is off). Audited as `login_link.created`,
+  whichever URL rewriting is in effect (query-string links when it is off). Audited as `login_link.created`,
   `login_link.refused`, `login_link.used` and `login_link.failed`; mistyped or unknown links are not audited.
 - The feature is off by default (**Settings → Steward**); `STEWARD_DISABLE_LOGIN_LINKS` in `config.php`, or
   reverse-proxy authentication, keeps it off.

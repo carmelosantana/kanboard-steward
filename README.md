@@ -134,7 +134,9 @@ and the time it stops working. Send it to the user however you like.
 - **Two-factor authentication** is still asked for: the link replaces the password, not the code.
 - **Application URL required.** Links are built from **Settings → Application settings → Application URL**,
   never from the request's host; with no Application URL set, no link is made. The rest of the link follows
-  Kanboard's URL rewriting: `login-link/…` with rewriting on, `?controller=…` with it off (the default).
+  whichever URL rewriting is in effect: `login-link/…` with rewriting on, `?controller=…` with it off.
+  That depends on the server setup: off in Kanboard's `config.default.php`, on in the official Docker image and
+  with Apache's `.htaccess`.
 - An unknown, used, expired or mistyped link always gets the same page: "This sign-in link is invalid or has
   expired." Only a hash of each link is stored.
 

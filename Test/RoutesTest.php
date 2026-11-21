@@ -132,4 +132,18 @@ class RoutesTest extends StewardTestCase
             $this->container['route']->findRoute('login-link/'.self::TOKEN));
         $this->assertSame(self::TOKEN, $this->container['request']->getStringParam('token'));
     }
+
+    /** Rewriting on: the confirm page's form posts to `login-link/<token>/redeem`, which routes to redeem. */
+    public function testConfirmFormPostsToThePrettyRedeemPathWithRewritingOn(): void
+    {
+        $html = $this->container['template']->render('Steward:login_link/confirm', [
+            'steward_brand' => null,
+            'steward_site_name' => 'Kanboard',
+            'steward_link_user' => ['id' => 2, 'username' => 'ana', 'name' => ''],
+            'steward_link_token' => self::TOKEN,
+        ]);
+        $this->assertMatchesRegularExpression('~<form method="post" action="(?:[^"?]*/)?login-link/'.self::TOKEN.'/redeem"~', $html);
+        $this->assertSame(['controller' => 'StewardLoginLinkController', 'action' => 'redeem', 'plugin' => 'Steward'],
+            $this->container['route']->findRoute('login-link/'.self::TOKEN.'/redeem'));
+    }
 }
