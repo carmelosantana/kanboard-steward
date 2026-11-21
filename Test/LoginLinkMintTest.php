@@ -153,6 +153,9 @@ class LoginLinkMintTest extends StewardTestCase
             case 'external_auth':
                 $users->eq('id', $this->ana)->update(['is_ldap_user' => 1]);
                 break;
+            case 'login_form_disabled':
+                $users->eq('id', $this->ana)->update(['disable_login_form' => 1]);
+                break;
             case 'locked':
                 $this->container['userLockingModel']->lock('ana', 15);
                 break;
@@ -164,7 +167,7 @@ class LoginLinkMintTest extends StewardTestCase
     public static function reasons(): array
     {
         $all = ['disabled', 'acl_conflict', 'not_admin', 'switched', '2fa_pending',
-            'not_found', 'inactive', 'self', 'target_admin', 'external_auth', 'locked'];
+            'not_found', 'inactive', 'self', 'target_admin', 'external_auth', 'login_form_disabled', 'locked'];
         return array_combine($all, array_map(fn ($r) => [$r], $all));
     }
 

@@ -212,7 +212,7 @@ class LoginLinks extends Base
         return rtrim(trim((string) $this->configModel->get('application_url', '')), "/ \t\n\r\0\x0B");
     }
 
-    /** Why $user can't be signed in by a link (decisions 13 and 14), or null. */
+    /** Why $user can't be signed in by a link (decisions 13, 14 and 19), or null. */
     private function targetRefusal(?array $user): ?string
     {
         return match (true) {
@@ -220,6 +220,8 @@ class LoginLinks extends Base
             empty($user['is_active']) => 'inactive',
             ($user['role'] ?? null) === Role::APP_ADMIN => 'target_admin',
             ! empty($user['is_ldap_user']) => 'external_auth',
+            // Core's DatabaseAuth won't sign such a user in with a password either (decision 19).
+            ! empty($user['disable_login_form']) => 'login_form_disabled',
             $this->userLockingModel->isLocked((string) ($user['username'] ?? '')) => 'locked',
             default => null,
         };

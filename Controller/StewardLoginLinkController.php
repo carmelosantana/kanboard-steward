@@ -20,7 +20,7 @@ class StewardLoginLinkController extends BaseController
 
     /** mint() refusals reached only after the actor passed authorisation and the target was found. */
     private const TARGET_PHASE_REASONS = [
-        'inactive', 'self', 'target_admin', 'external_auth', 'locked',
+        'inactive', 'self', 'target_admin', 'external_auth', 'login_form_disabled', 'locked',
         'no_app_url', 'rate_limited', 'store_failed', 'audit_failed',
     ];
 

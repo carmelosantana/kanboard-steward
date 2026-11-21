@@ -42,6 +42,7 @@ class LoginLinkControllerTest extends StewardTestCase
     private int $ana;
     private int $boss;
     private int $ldap;
+    private int $noForm;
     private StewardLoginLinkControllerLogSink $log;
     private ?string $body = null;
     private ?int $status = null;
@@ -76,6 +77,8 @@ class LoginLinkControllerTest extends StewardTestCase
         $this->ana = $users->create(['username' => 'ana', 'name' => '<b>Ana & "Co"</b>', 'password' => 'secret-password']);
         $this->boss = $users->create(['username' => 'boss', 'name' => 'Big Boss', 'password' => 'secret-password', 'role' => Role::APP_ADMIN]);
         $this->ldap = $users->create(['username' => 'dir', 'name' => 'Dir User', 'is_ldap_user' => 1]);
+        $this->noForm = $users->create(['username' => 'sso', 'name' => 'SSO User', 'password' => 'secret-password']);
+        $this->container['db']->table(UserModel::TABLE)->eq('id', $this->noForm)->update(['disable_login_form' => 1]);
 
         $this->loginAs(self::ADMIN);
     }
@@ -288,7 +291,7 @@ class LoginLinkControllerTest extends StewardTestCase
     /** Target-phase refusals go back to the profile; the reason itself is only in the audit log. */
     public function testRefusalForATargetFlashesTheUniformMessageAndReturnsToTheProfile(): void
     {
-        foreach (['admin target' => $this->boss, 'self' => self::ADMIN, 'ldap' => $this->ldap] as $case => $userId) {
+        foreach (['admin target' => $this->boss, 'self' => self::ADMIN, 'ldap' => $this->ldap, 'login form disabled' => $this->noForm] as $case => $userId) {
             $this->create($userId);
             $this->assertSame(self::MINT_REFUSED, $this->flashFailure(), $case);
             $this->assertStringContainsString('controller=UserViewController&action=show&user_id='.$userId, (string) $this->redirect, $case);
@@ -585,7 +588,7 @@ class LoginLinkControllerTest extends StewardTestCase
 
     public function testButtonHiddenForAdminLdapSelfAndNonAdminsAndWithTheFeatureOff(): void
     {
-        foreach (['admin target' => $this->boss, 'ldap' => $this->ldap, 'self' => self::ADMIN] as $case => $userId) {
+        foreach (['admin target' => $this->boss, 'ldap' => $this->ldap, 'login form disabled' => $this->noForm, 'self' => self::ADMIN] as $case => $userId) {
             $this->assertStringNotContainsString('StewardLoginLinkController', $this->profileButton($userId), $case);
         }
         $this->loginAs($this->boss);

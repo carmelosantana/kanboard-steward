@@ -296,7 +296,7 @@ class LoginLinkRedeemTest extends StewardTestCase
 
     public static function targetChanges(): array
     {
-        return ['disabled' => ['disabled'], 'admin' => ['admin'], 'ldap' => ['ldap'], 'locked' => ['locked']];
+        return ['disabled' => ['disabled'], 'admin' => ['admin'], 'ldap' => ['ldap'], 'login_form' => ['login_form'], 'locked' => ['locked']];
     }
 
     /** @dataProvider targetChanges */
@@ -310,6 +310,7 @@ class LoginLinkRedeemTest extends StewardTestCase
             'disabled' => $this->container['userModel']->disable($this->ana),
             'admin' => $users->eq('id', $this->ana)->update(['role' => Role::APP_ADMIN]),
             'ldap' => $users->eq('id', $this->ana)->update(['is_ldap_user' => 1]),
+            'login_form' => $users->eq('id', $this->ana)->update(['disable_login_form' => 1]),
             'locked' => $this->container['userLockingModel']->lock('ana', 15),
         };
         $this->container['memoryCache']->flush();
