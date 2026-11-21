@@ -47,14 +47,21 @@ class StewardLoginLinkController extends BaseController
         }
 
         if ($result['ok']) {
-            $this->response->withHeader('Cache-Control', 'no-store');
-            $this->response->html($this->helper->layout->app('Steward:login_link/shown', [
-                'title' => t('Sign-in link'),
-                'steward_link_url' => $result['url'],
-                'steward_link_expires_at' => $result['expires_at'],
-                'steward_link_user' => $this->userModel->getById($targetId) ?: [],
-            ]));
-            return;
+            try {
+                $page = $this->helper->layout->app('Steward:login_link/shown', [
+                    'title' => t('Sign-in link'),
+                    'steward_link_url' => $result['url'],
+                    'steward_link_expires_at' => $result['expires_at'],
+                    'steward_link_user' => $this->userModel->getById($targetId) ?: [],
+                ]);
+                $this->response->withHeader('Cache-Control', 'no-store');
+                $this->response->html($page);
+                return;
+            } catch (Throwable $e) {
+                // The link exists but was never shown; minting again cancels it.
+                $this->logger->error('Steward: showing a sign-in link failed: '.$e->getMessage());
+                $result = ['ok' => false, 'reason' => 'error'];
+            }
         }
 
         // One message for every reason but the fixable one; the real reason is in the audit log only. Back to the
@@ -109,11 +116,12 @@ class StewardLoginLinkController extends BaseController
         if (! $this->featureOn()) {
             return;
         }
+        // Before the checks, so core's 403 page (which keeps the token in its URL) carries them too.
+        $this->privateHeaders();
         if (! $this->request->isPost()) {
             throw new AccessForbiddenException();
         }
         $this->checkCSRFForm();
-        $this->privateHeaders();
 
         try {
             $reason = $this->container['stewardLoginLinks']->redeem($this->token());

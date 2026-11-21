@@ -343,6 +343,28 @@ class LoginLinkControllerTest extends StewardTestCase
         $this->assertStringContainsString('database is locked', $this->errors()[0]);
     }
 
+    /** The link was made but can't be shown: logged, and the admin gets the same answer as a failed mint. */
+    public function testErrorAfterMintingFlashesTheUniformMessage(): void
+    {
+        $users = $this->getMockBuilder(UserModel::class)
+            ->setConstructorArgs([$this->container])->onlyMethods(['getById'])->getMock();
+        $users->method('getById')->willThrowException(new SQLException('SQLSTATE[HY000]: database is locked'));
+        $links = $this->getMockBuilder(LoginLinks::class)
+            ->setConstructorArgs([$this->container])->onlyMethods(['mint'])->getMock();
+        $links->method('mint')->willReturn(['ok' => true, 'url' => self::APP_URL.'login-link/'.str_repeat('a', 64), 'expires_at' => time() + 900]);
+        unset($this->container['stewardLoginLinks'], $this->container['userModel']);
+        $this->container['stewardLoginLinks'] = $links;
+        $this->container['userModel'] = $users;
+
+        $this->create($this->ana);
+
+        $this->assertSame(self::MINT_REFUSED, $this->flashFailure());
+        $this->assertStringContainsString('controller=UserListController&action=show', (string) $this->redirect);
+        $this->assertNull($this->body);
+        $this->assertCount(1, $this->errors());
+        $this->assertStringContainsString('database is locked', $this->errors()[0]);
+    }
+
     // --- confirm ----------------------------------------------------------------------------------------
 
     public function testConfirmNamesTheUserPostsToRedeemAndConsumesNothing(): void
@@ -434,6 +456,9 @@ class LoginLinkControllerTest extends StewardTestCase
         }
         $this->assertNull($this->row($token)['used_at']);
         $this->assertSame(0, (int) $this->container['userSession']->getId());
+        // Core's 403 page for a stale form still holds the token in its URL.
+        $this->assertSame('no-referrer', $this->headers()['Referrer-Policy'] ?? null);
+        $this->assertSame('no-store', $this->headers()['Cache-Control'] ?? null);
     }
 
     public function testRedeemWhileSignedInShowsTheSignedInPageAndConsumesNothing(): void
@@ -498,11 +523,20 @@ class LoginLinkControllerTest extends StewardTestCase
     {
         $html = $this->profileButton($this->ana);
         $this->assertMatchesRegularExpression(
-            '~<form method="post" action="[^"]*controller=StewardLoginLinkController&amp;action=create&amp;plugin=Steward"~', $html);
+            '~<form method="post" action="[^"]*controller=StewardLoginLinkController&amp;action=create&amp;plugin=Steward&amp;user_id='.$this->ana.'"~', $html);
         $this->assertStringContainsString('name="csrf_token"', $html);
         $this->assertStringContainsString('name="user_id" id="form-user_id" value="'.$this->ana.'"', $html);
         $this->assertStringContainsString('Sign-in link', $html);
         $this->assertStringNotContainsString('<a ', $html);
+    }
+
+    public function testButtonPostsToThePrettyRouteWhenUrlRewritingIsOn(): void
+    {
+        // Plugin::initialize() ran with rewriting off, so the route was never added; add it as Plugin.php does.
+        $this->container['route']->enable();
+        $this->container['route']->addRoute('steward/user/:user_id/login-link', 'StewardLoginLinkController', 'create', 'Steward');
+
+        $this->assertMatchesRegularExpression('~<form method="post" action="[^"]*steward/user/'.$this->ana.'/login-link"~', $this->profileButton($this->ana));
     }
 
     public function testButtonHiddenForAdminLdapSelfAndNonAdminsAndWithTheFeatureOff(): void
