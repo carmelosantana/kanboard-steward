@@ -33,6 +33,32 @@ class AuditLog extends Base
 
     /** True while hook listeners run: a listener's own write is stored but does not fire the hook again. */
     private bool $dispatching = false;
+    /** Rows whose hook call waits for flushHooks() (or is dropped by discardHooks()); null when not deferring. */
+    private ?array $deferred = null;
+
+    /**
+     * Holds back `steward:audit` listener calls until flushHooks(), for a caller that writes inside its own
+     * transaction: a listener then never runs (or fails, or waits) inside it, and never hears of a row that a
+     * rollback took back. The caller flushes after its commit and discards on rollback.
+     */
+    public function deferHooks(): void
+    {
+        $this->deferred = [];
+    }
+
+    public function flushHooks(): void
+    {
+        $rows = $this->deferred ?? [];
+        $this->deferred = null;
+        foreach ($rows as $row) {
+            $this->dispatch($row);
+        }
+    }
+
+    public function discardHooks(): void
+    {
+        $this->deferred = null;
+    }
 
     public function log(string $event, ?int $actorId, ?int $subjectId, array $details = [], ?string $switchId = null): bool
     {
@@ -147,7 +173,11 @@ class AuditLog extends Base
             }
             $this->prune();
         }
-        $this->dispatch($row);
+        if ($this->deferred !== null) {
+            $this->deferred[] = $row;
+        } else {
+            $this->dispatch($row);
+        }
         return true;
     }
 

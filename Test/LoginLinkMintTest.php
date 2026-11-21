@@ -297,8 +297,8 @@ class LoginLinkMintTest extends StewardTestCase
         $this->links()->mint($this->ana);
         $db = $this->container['db'];
         $seen = null;
-        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use ($db, &$seen) {
-            if ($row['event'] === 'login_link.created') {
+        $this->spyOnAuditWrites(function (string $event) use ($db, &$seen) {
+            if ($event === 'login_link.created') {
                 $seen = [
                     'in_transaction' => $db->getConnection()->inTransaction(),
                     'live' => $db->table(LoginLinks::TABLE)->eq('user_id', $this->ana)->isNull('used_at')->gt('expires_at', time())->count(),
@@ -319,6 +319,21 @@ class LoginLinkMintTest extends StewardTestCase
         if (DB_DRIVER === 'sqlite') {
             $this->assertMatchesRegularExpression('/^UPDATE/i', $sql[$lock], 'on SQLite the lock is a write');
         }
+        // MySQL takes FOR UPDATE; Postgres FOR NO KEY UPDATE (same serialisation, doesn't block FK inserts). Both
+        // run the transaction at READ COMMITTED, set before the lock.
+        if (DB_DRIVER === 'mysql') {
+            $this->assertStringContainsString('ORDER BY id FOR UPDATE', $sql[$lock]);
+        }
+        if (DB_DRIVER === 'postgres') {
+            $this->assertStringContainsString('FOR NO KEY UPDATE', $sql[$lock]);
+        }
+        $iso = $this->firstIndex($sql, fn ($q) => str_contains($q, 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED'));
+        if (DB_DRIVER === 'sqlite') {
+            $this->assertNull($iso, 'SQLite has one writer; nothing to set');
+        } else {
+            $this->assertNotNull($iso, "READ COMMITTED is set:\n".implode("\n", $sql));
+            $this->assertLessThan($lock, $iso);
+        }
         foreach ([
             'rate-limit count' => fn ($q) => str_contains($q, 'COUNT') && str_contains($q, 'steward_login_link'),
             'kill' => fn ($q) => str_starts_with($q, 'UPDATE') && str_contains($q, 'expires_at') && str_contains($q, 'steward_login_link'),
@@ -330,6 +345,24 @@ class LoginLinkMintTest extends StewardTestCase
         }
         $this->assertNull($this->firstIndex(array_slice($sql, 0, $lock), fn ($q) => str_contains($q, 'steward_login_link')),
             "nothing touches the link table before the lock:\n".implode("\n", $sql));
+    }
+
+    /** Swaps in an AuditLog that calls $spy(event) just before each write, inside whatever transaction is open. */
+    private function spyOnAuditWrites(callable $spy): void
+    {
+        $audit = new class($this->container) extends AuditLog {
+            /** @var callable|null */
+            public $spy = null;
+
+            public function logInternal(string $event, ?int $actorId, ?int $subjectId, array $details = [], ?string $switchId = null): bool
+            {
+                ($this->spy)($event);
+                return parent::logInternal($event, $actorId, $subjectId, $details, $switchId);
+            }
+        };
+        $audit->spy = $spy;
+        unset($this->container['stewardAudit']);
+        $this->container['stewardAudit'] = $audit;
     }
 
     private function firstIndex(array $list, callable $match): ?int
@@ -369,8 +402,8 @@ class LoginLinkMintTest extends StewardTestCase
         $this->assertTrue($tryLock(), 'precondition: the row is free');
 
         $during = null;
-        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use ($tryLock, &$during) {
-            if ($row['event'] === 'login_link.created') {
+        $this->spyOnAuditWrites(function (string $event) use ($tryLock, &$during) {
+            if ($event === 'login_link.created') {
                 $during = $tryLock();
             }
         });
@@ -379,6 +412,81 @@ class LoginLinkMintTest extends StewardTestCase
         $this->assertFalse($during, 'the target row is locked while the mint is open');
         $this->assertTrue($tryLock(), 'and free after the commit');
         $other = null;
+    }
+
+    /**
+     * Round 2: steward:audit listeners run after the mint commits. A listener whose SQL fails used to roll the whole
+     * mint back from inside the transaction while mint() still answered ok with a link that was never stored.
+     */
+    public function testAuditHookRunsAfterTheMintCommitsAndCanNotUndoIt(): void
+    {
+        $db = $this->container['db'];
+        $seen = null;
+        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use ($db, &$seen) {
+            if ($row['event'] !== 'login_link.created') {
+                return;
+            }
+            $seen = [
+                'in_transaction' => $db->getConnection()->inTransaction(),
+                'stored' => $db->table(LoginLinks::TABLE)->eq('id', (int) json_decode($row['details'], true)['link_id'])->exists(),
+            ];
+            $db->execute('SELECT missing_column FROM steward_no_such_table');
+        });
+
+        $result = $this->links()->mint($this->ana);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame(['in_transaction' => false, 'stored' => true], $seen, 'the listener runs after the commit');
+        $this->assertTrue($db->table(LoginLinks::TABLE)->eq('token_hash', hash('sha256', $this->tokenOf($result)))->exists(),
+            'the link mint() returned is stored');
+        $this->assertCount(1, $this->auditRows('login_link.created'));
+    }
+
+    /** A refused or rolled-back mint never reaches the listeners with its created row. */
+    public function testRolledBackMintFiresNoCreatedHook(): void
+    {
+        $events = [];
+        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use (&$events) {
+            $events[] = $row['event'];
+        });
+        $this->spyOnAuditWrites(function (string $event) {
+            if ($event === 'login_link.created') {
+                // Fails the created write itself: PicoDb rolls the mint back.
+                $this->container['db']->getConnection()->exec('DROP TABLE '.LoginLinks::TABLE.'_nope_'.random_int(1, 9));
+            }
+        });
+
+        try {
+            $result = $this->links()->mint($this->ana);
+        } catch (\Throwable) {
+            $result = ['ok' => false];
+        }
+        $this->assertFalse($result['ok']);
+        $this->assertNotContains('login_link.created', $events);
+        $this->assertSame([], $this->rows());
+    }
+
+    /** Housekeeping after the commit can't turn a stored, audited link into an error. */
+    public function testHousekeepingFailureAfterCommitStillReturnsTheLink(): void
+    {
+        if (DB_DRIVER !== 'sqlite') {
+            $this->assertNotSame('sqlite', DB_DRIVER);
+            return;
+        }
+        // An old expired row for housekeeping to delete, and a trigger that makes that delete fail.
+        $this->container['db']->table(LoginLinks::TABLE)->insert([
+            'user_id' => $this->ana, 'token_hash' => str_repeat('0', 64), 'created_by' => self::ADMIN,
+            'created_at' => 1, 'expires_at' => 2,
+        ]);
+        $this->container['db']->getConnection()->exec('CREATE TRIGGER steward_no_delete BEFORE DELETE ON '.LoginLinks::TABLE
+            .' BEGIN SELECT RAISE(ABORT, \'no\'); END');
+
+        $result = $this->links()->mint($this->ana);
+
+        $this->assertTrue($result['ok'], 'mint: '.($result['reason'] ?? ''));
+        $this->assertTrue($this->container['db']->table(LoginLinks::TABLE)->eq('token_hash', hash('sha256', $this->tokenOf($result)))->exists());
+        $errors = array_filter($this->log->lines, fn ($l) => $l[0] === 'error' && str_contains($l[1], 'housekeeping'));
+        $this->assertNotEmpty($errors, 'the housekeeping failure is logged');
     }
 
     public function testRemintLeavesUsedLinksAlone(): void

@@ -144,12 +144,15 @@ class LoginLinks extends Base
         // Decision 18: one transaction, locked on the actor and the target first, so two concurrent mints for a
         // user can't both cancel the old links before either inserts, and one admin's mints can't race the rate
         // limit. A refusal rolls back and is audited after the rollback (PicoDb rolls back on any SQL error too).
-        $this->db->startTransaction();
+        // steward:audit listeners hear of the created row only after the commit: inside the transaction a failing
+        // listener could roll the mint back unseen, and a slow one would hold the locks.
+        $audit = $this->stewardAudit;
+        $audit->deferHooks();
         try {
-            $this->lockUsers($actorId, $targetId);
+            $this->beginLocked($actorId, $targetId);
             $now = time();
             if ($this->mintedSince($actorId, $now - self::RATE_WINDOW) >= self::RATE_LIMIT) {
-                $this->db->cancelTransaction();
+                $this->rollBack();
                 return $this->refuse('rate_limited', $actorId, $targetId);
             }
 
@@ -168,21 +171,33 @@ class LoginLinks extends Base
                 'expires_at' => $expiresAt,
             ]);
             if ($id <= 0) {
-                $this->db->cancelTransaction();
+                $this->rollBack();
                 return $this->refuse('store_failed', $actorId, $targetId);
             }
 
             if (! $this->stewardAudit->logInternal('login_link.created', $actorId, $targetId, ['link_id' => $id, 'expires_at' => $expiresAt])) {
-                $this->db->cancelTransaction();
+                $this->rollBack();
                 return $this->refuse('audit_failed', $actorId, $targetId);
+            }
+            // PicoDb rolls back on any SQL error it handles; never commit (or report) what is already gone.
+            if (! $this->db->getConnection()->inTransaction()) {
+                $this->rollBack();
+                return $this->refuse('store_failed', $actorId, $targetId);
             }
             $this->db->closeTransaction();
         } catch (Throwable $e) {
-            $this->db->cancelTransaction();
+            $this->rollBack();
             throw $e;
         }
-        // Housekeeping needs no lock: kept out of the transaction so it never holds up another user's mint.
-        $this->db->table(self::TABLE)->lt('expires_at', $now - self::KEEP_EXPIRED)->remove();
+        $audit->flushHooks();
+
+        // Housekeeping needs no lock: kept out of the transaction so it never holds up another user's mint, and
+        // its failure never turns a stored, audited link into an error.
+        try {
+            $this->db->table(self::TABLE)->lt('expires_at', $now - self::KEEP_EXPIRED)->remove();
+        } catch (Throwable $e) {
+            $this->logger->error('Steward: sign-in link housekeeping failed: '.$e->getMessage());
+        }
 
         return ['ok' => true, 'url' => $this->url($token), 'expires_at' => $expiresAt];
     }
@@ -229,22 +244,48 @@ class LoginLinks extends Base
     }
 
     /**
-     * Locks the actor's and the target's user rows until the transaction ends (decision 18), lower id first so two
-     * mints never wait on each other in a cycle. SQLite has no row locks but one writer at a time: a write as the
-     * transaction's first statement takes that lock, and a second mint's write waits for the commit (busy timeout).
+     * Starts mint's transaction and locks the actor's and the target's user rows until it ends (decision 18), lower
+     * id first so two mints never wait on each other in a cycle.
+     *
+     * Isolation: MySQL and Postgres run this transaction at READ COMMITTED, whatever the server default. Under
+     * InnoDB's REPEATABLE READ, next-key and gap locks let two mints for different users deadlock; under a Postgres
+     * REPEATABLE READ default, a mint that waited for the lock would cancel links from an old snapshot and miss the
+     * row the first mint just committed. At READ COMMITTED each statement after the lock sees that row.
+     * Postgres takes FOR NO KEY UPDATE: it serialises mints the same way and doesn't block inserts that reference
+     * the user row. SQLite has no row locks but one writer at a time: a write as the transaction's first statement
+     * takes that lock, and a second mint's write waits for the commit (busy timeout).
      */
-    private function lockUsers(int $actorId, int $targetId): void
+    private function beginLocked(int $actorId, int $targetId): void
     {
+        $driver = $this->db->getConnection()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        // Inside a caller's transaction the isolation level is already fixed (and can't be set).
+        $own = ! $this->db->getConnection()->inTransaction();
+        if ($own && $driver === 'mysql') {
+            $this->db->execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        }
+        $this->db->startTransaction();
+        if ($own && $driver === 'pgsql') {
+            $this->db->execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        }
+
         $ids = array_values(array_unique([$actorId, $targetId]));
         sort($ids);
         $in = implode(', ', array_fill(0, count($ids), '?'));
-        $sql = match ($this->db->getConnection()->getAttribute(PDO::ATTR_DRIVER_NAME)) {
+        $sql = match ($driver) {
             'sqlite' => 'UPDATE '.self::TABLE.' SET user_id = user_id WHERE user_id IN ('.$in.')',
-            'mysql', 'pgsql' => 'SELECT id FROM users WHERE id IN ('.$in.') ORDER BY id FOR UPDATE',
-            // SQL Server (sqlsrv, dblib, odbc): an update lock held to the end of the transaction.
+            'mysql' => 'SELECT id FROM users WHERE id IN ('.$in.') ORDER BY id FOR UPDATE',
+            'pgsql' => 'SELECT id FROM users WHERE id IN ('.$in.') ORDER BY id FOR NO KEY UPDATE',
+            // SQL Server (sqlsrv, dblib, odbc), best effort: an update lock held to the end of the transaction.
             default => 'SELECT id FROM users WITH (UPDLOCK, ROWLOCK) WHERE id IN ('.$in.')',
         };
         $this->db->execute($sql, $ids);
+    }
+
+    /** Ends mint's transaction without committing; the created row's hook call goes with it. */
+    private function rollBack(): void
+    {
+        $this->db->cancelTransaction();
+        $this->stewardAudit->discardHooks();
     }
 
     private function findByToken(string $token): ?array
