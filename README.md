@@ -121,16 +121,16 @@ in once. On the user's profile, **Sign-in link** creates one and shows it a sing
 and the time it stops working. Send it to the user however you like.
 
 - **Who can make one:** admins, after their own two-factor step, and not while switched to another user.
-- **For whom:** active users who are not admins, not yourself, with a local account. LDAP and other
-  directory users are refused, as are users locked out after failed logins.
+- **For whom:** active users who are not admins and not yourself. LDAP users are refused, as are users
+  locked out after failed logins.
 - **15 minutes, once.** A link works for 15 minutes and only once. Making a new link for the same user
   cancels the earlier one. An admin can make at most 10 links an hour.
 - **Opening the link** shows "Sign in to *site* as *username*" with a **Sign in** button; only the button
   uses the link, so a chat or mail preview that opens it doesn't spend it. Someone already signed in in that
   browser is asked to sign out first.
 - **Two-factor authentication** is still asked for: the link replaces the password, not the code.
-- **Application URL required.** Links are built from **Settings → Application URL**, never from the request's
-  host; with no Application URL set, no link is made.
+- **Application URL required.** Links are built from **Settings → Application settings → Application URL**,
+  never from the request's host; with no Application URL set, no link is made.
 - An unknown, used, expired or mistyped link always gets the same page: "This sign-in link is invalid or has
   expired." Only a hash of each link is stored.
 
