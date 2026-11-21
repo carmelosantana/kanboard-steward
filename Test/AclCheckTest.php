@@ -1,7 +1,6 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Log\Logger;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Model\AclCheck;
@@ -30,7 +29,7 @@ class StewardTestAclCheck extends AclCheck
     }
 }
 
-class AclCheckTest extends Base
+class AclCheckTest extends StewardTestCase
 {
     private StewardTestLogCollector $log;
 

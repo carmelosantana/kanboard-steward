@@ -1,9 +1,8 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 require_once __DIR__.'/support/PulseStub.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\Runner;
 use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Core\Http\Request;
@@ -88,7 +87,7 @@ class StewardGuardProbeJob extends BaseJob
     }
 }
 
-class SwitchGuardTest extends Base
+class SwitchGuardTest extends StewardTestCase
 {
     private const ADMIN = 1;
 

@@ -1,9 +1,8 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Controller\StewardSettingsController;
@@ -13,7 +12,7 @@ use Kanboard\Plugin\Steward\Plugin;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
-class SettingsTest extends Base
+class SettingsTest extends StewardTestCase
 {
     private string $html = '';
     private array $flashes = [];

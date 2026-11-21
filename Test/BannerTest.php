@@ -1,9 +1,8 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Core\Http\Request;
@@ -26,7 +25,7 @@ class StewardBannerLogSink extends \Kanboard\Core\Log\Base
 }
 
 /** Spec §7 announcement banner: renderer, schedule, dismissal, where it shows. */
-class BannerTest extends Base
+class BannerTest extends StewardTestCase
 {
     private const ADMIN = 1;
     private const NOW = 1900000000; // 2030-03-17

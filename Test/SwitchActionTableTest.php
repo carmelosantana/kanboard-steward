@@ -1,11 +1,10 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 require_once __DIR__.'/support/PulseStub.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Model\SwitchActionTable;
 
-class SwitchActionTableTest extends Base
+class SwitchActionTableTest extends StewardTestCase
 {
     /** @return array<string,true> 'Controller::action' for every public action a core controller exposes. */
     private static function coreActions(): array

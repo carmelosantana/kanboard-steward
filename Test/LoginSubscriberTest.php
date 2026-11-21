@@ -1,8 +1,7 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Log\Logger;
 use Kanboard\Core\Security\AuthenticationManager;
@@ -20,7 +19,7 @@ class StewardLoginLogSink extends \Kanboard\Core\Log\Base
     }
 }
 
-class LoginSubscriberTest extends Base
+class LoginSubscriberTest extends StewardTestCase
 {
     private int $alice;
 

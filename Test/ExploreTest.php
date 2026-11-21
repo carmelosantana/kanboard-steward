@@ -1,10 +1,9 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 require_once __DIR__.'/support/TokenForms.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Controller\StewardExploreController;
@@ -20,7 +19,7 @@ use Kanboard\Plugin\Steward\Plugin;
  * Spec §5.4 directory and listed pages, rendered through core's real layout as an anonymous visitor. Several
  * projects each miss one condition; none of them may show up anywhere.
  */
-class ExploreTest extends Base
+class ExploreTest extends StewardTestCase
 {
     use StewardTokenForms;
 

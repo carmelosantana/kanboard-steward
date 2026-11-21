@@ -1,9 +1,8 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Core\Http\Request;
@@ -59,7 +58,7 @@ class StewardSpyRememberMeModel extends RememberMeSessionModel
     }
 }
 
-class SwitchStartTest extends Base
+class SwitchStartTest extends StewardTestCase
 {
     private const ADMIN = 1;
     private const IP = '203.0.113.9';

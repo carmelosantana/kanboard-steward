@@ -1,12 +1,11 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 if (! class_exists('Kanboard\\Plugin\\ShadcnTheme\\Controller\\SettingsController')) {
     require_once __DIR__.'/fixtures/ShadcnSettingsControllerStub.php';
 }
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Security\Role;
@@ -19,7 +18,7 @@ use Kanboard\Plugin\Steward\Model\SwitchActionTable;
 use Kanboard\Plugin\Steward\Plugin;
 
 /** Spec §3 Applying/Helper and §5.6: the logo, favicon and site name reach the pages; ShadcnTheme fallback and import. */
-class BrandingApplyTest extends Base
+class BrandingApplyTest extends StewardTestCase
 {
     private const ADMIN = 1;
     private const SVG_REFUSAL = 'Your ShadcnTheme logo is an SVG; upload a PNG instead';

@@ -1,8 +1,7 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Http\Response;
@@ -22,7 +21,7 @@ class StewardUiLogSink extends \Kanboard\Core\Log\Base
 }
 
 /** Spec §2 Flow steps 1 and 4: the profile button, the confirmation modal, the banner and the dropdown item. */
-class SwitchUiTest extends Base
+class SwitchUiTest extends StewardTestCase
 {
     private const ADMIN = 1;
 

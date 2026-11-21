@@ -1,7 +1,6 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Http\Router;
@@ -36,7 +35,7 @@ class StewardTestFeatureGate extends FeatureGate
     }
 }
 
-class FeatureGateTest extends Base
+class FeatureGateTest extends StewardTestCase
 {
     private const FAKE = 'StewardFakeController';
 

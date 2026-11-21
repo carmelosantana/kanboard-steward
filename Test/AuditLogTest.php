@@ -1,8 +1,7 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Log\Logger;
 use Kanboard\Plugin\Steward\Model\AuditLog;
@@ -19,7 +18,7 @@ class StewardAuditLogCollector extends \Kanboard\Core\Log\Base
     }
 }
 
-class AuditLogTest extends Base
+class AuditLogTest extends StewardTestCase
 {
     private StewardAuditLogCollector $log;
 
@@ -97,7 +96,7 @@ class AuditLogTest extends Base
     {
         $pdo = $this->container['db']->getConnection();
         \Kanboard\Plugin\Steward\Schema\version_2($pdo);
-        $columns = array_column($pdo->query('PRAGMA table_info(steward_project_page)')->fetchAll(\PDO::FETCH_ASSOC), 'name');
+        $columns = steward_table_columns($pdo, 'steward_project_page');
         $this->assertSame(['project_id', 'tagline', 'links', 'panels', 'public_panels', 'is_public', 'is_listed', 'show_names', 'updated_at'], $columns);
     }
 
@@ -307,9 +306,10 @@ class AuditLogTest extends Base
     public function testHousekeepingFailureInsideACallersTransactionNeverLosesAReportedRow(): void
     {
         $db = $this->container['db'];
-        $db->startTransaction();
         // Prune is due and its settings read will fail; PicoDb cancels the open transaction on any SQL error.
+        // Dropped before the transaction starts: MySQL commits implicitly on DDL.
         $db->getConnection()->exec('DROP TABLE settings');
+        $db->startTransaction();
 
         $ok = $this->audit()->logInternal('login.failure', null, null, ['username' => 'x']);
         $inTx = $db->getConnection()->inTransaction();

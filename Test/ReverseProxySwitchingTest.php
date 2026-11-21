@@ -1,7 +1,6 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Plugin;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -11,7 +10,7 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
  * child process must inherit REVERSE_PROXY_AUTH=true. setUpBeforeClass runs in the parent before the child
  * is spawned; tearDownAfterClass clears it so no other suite sees it.
  */
-class ReverseProxySwitchingTest extends Base
+class ReverseProxySwitchingTest extends StewardTestCase
 {
     public static function setUpBeforeClass(): void
     {
@@ -52,7 +51,7 @@ class ReverseProxySwitchingTest extends Base
     public function testReverseProxyHidesTheSwitchButton(): void
     {
         $this->assertTrue(REVERSE_PROXY_AUTH);
-        require_once __DIR__.'/../Schema/Sqlite.php';
+        require_once __DIR__.'/support/StewardSchema.php';
         \Kanboard\Plugin\Steward\Schema\version_1($this->container['db']->getConnection());
         (new Plugin($this->container))->initialize();
         $this->container['configModel']->save(['steward_switching' => '1']);

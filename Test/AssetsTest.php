@@ -1,12 +1,11 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Plugin;
 
 /** Spec §4 Markdown, client side: highlight.js and the Markdown script/styles load only with the `markdown` feature. */
-class AssetsTest extends Base
+class AssetsTest extends StewardTestCase
 {
     private const JS = ['plugins/Steward/Assets/vendor/highlight.min.js', 'plugins/Steward/Assets/js/steward-markdown.js'];
     private const CSS = ['plugins/Steward/Assets/vendor/highlight-github.css', 'plugins/Steward/Assets/css/markdown.css'];

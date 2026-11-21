@@ -1,13 +1,12 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Security\Role;
 use Kanboard\Plugin\Steward\Model\AclCheck;
 use Kanboard\Plugin\Steward\Model\SwitchPolicy;
 use Kanboard\Plugin\Steward\Plugin;
 
-class SwitchPolicyTest extends Base
+class SwitchPolicyTest extends StewardTestCase
 {
     private SwitchPolicy $policy;
 

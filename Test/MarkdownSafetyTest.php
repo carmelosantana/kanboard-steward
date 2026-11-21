@@ -1,8 +1,7 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Log\Logger;
 use Kanboard\Helper\TextHelper;
@@ -35,7 +34,7 @@ class StewardThrowingHelper extends \Kanboard\Core\Helper
 }
 
 /** Spec §4 Markdown, safety: escaping, the URL allow-list, public-mode #N links and the heading fix. */
-class MarkdownSafetyTest extends Base
+class MarkdownSafetyTest extends StewardTestCase
 {
     /** Each vector is used as a link target and as an image source; none may survive as an href/src. */
     public static function unsafeUrls(): array

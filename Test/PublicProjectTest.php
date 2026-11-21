@@ -1,11 +1,10 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 require_once __DIR__.'/support/TestName.php';
 require_once __DIR__.'/support/TokenForms.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Security\Role;
 use Kanboard\Model\TaskModel;
@@ -22,7 +21,7 @@ use Kanboard\Plugin\Steward\Plugin;
  * Spec §5.3 public page, rendered through core's real layout as an anonymous visitor. Every private value is
  * seeded with a sentinel string that must not reach the HTML.
  */
-class PublicProjectTest extends Base
+class PublicProjectTest extends StewardTestCase
 {
     use StewardTestName;
     use StewardTokenForms;

@@ -1,11 +1,10 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Core\StewardMarkdown;
 
 /** Spec §4 Markdown, additions: task lists, heading ids with anchors, Mermaid blocks. */
-class MarkdownFeaturesTest extends Base
+class MarkdownFeaturesTest extends StewardTestCase
 {
     private function parser(bool $public = false, ?string $token = null, bool $plain = false): StewardMarkdown
     {

@@ -1,11 +1,10 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Plugin;
 
 // Tag == plugin.json == getPluginVersion(): drift across the three is the most common release defect.
-class PluginVersionTest extends Base
+class PluginVersionTest extends StewardTestCase
 {
     public function testVersionsAgree(): void
     {

@@ -1,8 +1,7 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Http\Route;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
 use Kanboard\Plugin\Steward\Model\SettingsSchema;
@@ -13,7 +12,7 @@ use Kanboard\Plugin\Steward\Plugin;
  * default, so every feature but Markdown is off. Every route exists anyway, so a disabled feature's URL reaches
  * FeatureGate's 404 instead of falling through to core.
  */
-class RoutesTest extends Base
+class RoutesTest extends StewardTestCase
 {
     /** path => [controller, action, feature or FeatureGate::ALWAYS] */
     private const ROUTES = [

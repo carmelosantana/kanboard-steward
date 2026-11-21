@@ -1,11 +1,9 @@
 <?php
-require_once 'tests/units/Base.php';
-
-use KanboardTests\units\Base;
+require_once __DIR__.'/support/StewardTestCase.php';
 
 // Vendored assets are pinned in Assets/vendor/README.md; any drift between the file on disk and
 // its recorded SHA-256 (or a file that ships unlisted) fails here.
-class VendorTest extends Base
+class VendorTest extends StewardTestCase
 {
     private const DIR = __DIR__.'/../Assets/vendor';
 

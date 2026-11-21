@@ -1,23 +1,24 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
-
-class LoginLinkSchemaTest extends Base
+class LoginLinkSchemaTest extends StewardTestCase
 {
-    private \PDO $pdo;
-
     protected function setUp(): void
     {
         parent::setUp();
-        $this->pdo = $this->container['db']->getConnection();
-        \Kanboard\Plugin\Steward\Schema\version_3($this->pdo);
+        \Kanboard\Plugin\Steward\Schema\version_3($this->pdo());
+    }
+
+    /** Not kept in a property: a PDO outliving tearDown holds the connection open (Postgres then can't drop the database). */
+    private function pdo(): \PDO
+    {
+        return $this->container['db']->getConnection();
     }
 
     private function insert(int $userId, string $hash): void
     {
-        $this->pdo->prepare('INSERT INTO steward_login_link (user_id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+        $this->pdo()->prepare('INSERT INTO steward_login_link (user_id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
             ->execute([$userId, $hash, 1, 1000, 1900]);
     }
 
@@ -38,7 +39,7 @@ class LoginLinkSchemaTest extends Base
 
     public function testVersion3CreatesTheTable(): void
     {
-        $columns = array_column($this->pdo->query('PRAGMA table_info(steward_login_link)')->fetchAll(\PDO::FETCH_ASSOC), 'name');
+        $columns = steward_table_columns($this->pdo(), 'steward_login_link');
         $this->assertSame(['id', 'user_id', 'token_hash', 'created_by', 'created_at', 'expires_at', 'used_at'], $columns);
     }
 
@@ -60,7 +61,7 @@ class LoginLinkSchemaTest extends Base
 
         $this->assertSame(
             [1],
-            array_map('intval', $this->pdo->query('SELECT user_id FROM steward_login_link')->fetchAll(\PDO::FETCH_COLUMN))
+            array_map('intval', $this->pdo()->query('SELECT user_id FROM steward_login_link')->fetchAll(\PDO::FETCH_COLUMN))
         );
     }
 }

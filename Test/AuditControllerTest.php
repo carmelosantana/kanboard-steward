@@ -1,9 +1,8 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Http\Response;
@@ -28,7 +27,7 @@ class StewardAuditPageLogSink extends \Kanboard\Core\Log\Base
     }
 }
 
-class AuditControllerTest extends Base
+class AuditControllerTest extends StewardTestCase
 {
     private int $alice;
     private int $bob;
@@ -226,7 +225,8 @@ class AuditControllerTest extends Base
     {
         $long = str_repeat('c3', 32).'c';
         $t = time() - 100;
-        $this->row('switch.start', $t, ['switch_id' => $long, 'details' => '{"m":"mark-L"}']);
+        // The column holds 64 characters on real databases, so the stored id is the 64-character prefix.
+        $this->row('switch.start', $t, ['switch_id' => substr($long, 0, 64), 'details' => '{"m":"mark-L"}']);
         $this->row('login.success', $t + 1, ['details' => '{"m":"mark-A"}']);
         $this->loginAs(1);
 

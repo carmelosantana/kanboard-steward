@@ -1,11 +1,10 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Plugin\Steward\Model\ImageProcessor;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-class ImageProcessorTest extends Base
+class ImageProcessorTest extends StewardTestCase
 {
     private const PNG_SIGNATURE = "\x89PNG\r\n\x1a\n";
     private const TARGETS = [

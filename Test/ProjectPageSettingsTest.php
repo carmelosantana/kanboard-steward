@@ -1,10 +1,9 @@
 <?php
-require_once 'tests/units/Base.php';
+require_once __DIR__.'/support/StewardTestCase.php';
 require_once __DIR__.'/support/TestName.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardSchema.php';
 require_once __DIR__.'/support/BrandingDoubles.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Security\Role;
@@ -24,7 +23,7 @@ class StewardProjectBodyOnlyLayoutHelper extends \Kanboard\Helper\LayoutHelper
     }
 }
 
-class ProjectPageSettingsTest extends Base
+class ProjectPageSettingsTest extends StewardTestCase
 {
     use StewardTestName;
 

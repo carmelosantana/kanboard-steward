@@ -1,8 +1,7 @@
 <?php
-require_once 'tests/units/Base.php';
-require_once __DIR__.'/../Schema/Sqlite.php';
+require_once __DIR__.'/support/StewardTestCase.php';
+require_once __DIR__.'/support/StewardSchema.php';
 
-use KanboardTests\units\Base;
 use Kanboard\Controller\AuthController;
 use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\Http\RememberMeCookie;
@@ -58,7 +57,7 @@ class StewardFakeSessionManager extends SessionManager
     }
 }
 
-class SwitchEndTest extends Base
+class SwitchEndTest extends StewardTestCase
 {
     private const ADMIN = 1;
 
