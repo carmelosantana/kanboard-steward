@@ -122,22 +122,27 @@ and the time it stops working. Send it to the user however you like.
 
 - **Who can make one:** admins, after their own two-factor step, and not while switched to another user.
 - **For whom:** active users who are not admins and not yourself. LDAP users are refused, as are users
-  locked out after failed logins.
+  locked out after failed logins and users with **Disallow login form** set (`disable_login_form`), whom
+  Kanboard wouldn't let sign in with a password either.
 - **15 minutes, once.** A link works for 15 minutes and only once. Making a new link for the same user
-  cancels the earlier one. An admin can make at most 10 links an hour.
+  cancels the earlier one, even when two admins make one at the same moment. An admin can make at most 10
+  links an hour. The link is a bearer credential: whoever has it can use it, and it shows up in server access
+  logs and browser history, which is why it lasts 15 minutes and works once.
 - **Opening the link** shows "Sign in to *site* as *username*" with a **Sign in** button; only the button
   uses the link, so a chat or mail preview that opens it doesn't spend it. Someone already signed in in that
   browser is asked to sign out first.
 - **Two-factor authentication** is still asked for: the link replaces the password, not the code.
 - **Application URL required.** Links are built from **Settings → Application settings → Application URL**,
-  never from the request's host; with no Application URL set, no link is made.
+  never from the request's host; with no Application URL set, no link is made. The rest of the link follows
+  Kanboard's URL rewriting: `login-link/…` with rewriting on, `?controller=…` with it off (the default).
 - An unknown, used, expired or mistyped link always gets the same page: "This sign-in link is invalid or has
   expired." Only a hash of each link is stored.
 
 The feature is off by default; turn it on under **Settings → Steward**. `STEWARD_DISABLE_LOGIN_LINKS` in
 `config.php`, or reverse-proxy authentication (`REVERSE_PROXY_AUTH`), keeps it off whatever the setting says.
 Making, refusing, using and failed links are audited as `login_link.created`, `login_link.refused`,
-`login_link.used` and `login_link.failed`.
+`login_link.used` and `login_link.failed`. A failed link is one that was used, expired or no longer valid for
+its user; a mistyped or unknown link isn't audited, since nothing ties it to a user and anyone could send one.
 
 ## Security model
 

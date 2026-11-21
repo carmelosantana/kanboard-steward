@@ -7,9 +7,11 @@
 - **Sign-in links:** on a user's profile, an admin can make a one-time link that signs that user in. A link
   works once, for 15 minutes, and is shown only when it is made; making another cancels it. Opening the link
   shows a **Sign in** button, so a link preview doesn't use it up. Two-factor authentication is still asked
-  for. Only active, non-admin users who are not LDAP users and not locked out; at most 10 links per admin
-  per hour. Links are built from the Application URL, which must be set. Audited as
-  `login_link.created`, `login_link.refused`, `login_link.used` and `login_link.failed`.
+  for. Only active, non-admin users who are not LDAP users, not locked out and not set to **Disallow login
+  form**; at most 10 links per admin per hour. Making links for a user is serialised, so two at once still
+  leave only one live link. Links are built from the Application URL, which must be set, and follow
+  Kanboard's URL rewriting setting (query-string links when it is off). Audited as `login_link.created`,
+  `login_link.refused`, `login_link.used` and `login_link.failed`; mistyped or unknown links are not audited.
 - The feature is off by default (**Settings → Steward**); `STEWARD_DISABLE_LOGIN_LINKS` in `config.php`, or
   reverse-proxy authentication, keeps it off.
 
