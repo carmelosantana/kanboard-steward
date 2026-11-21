@@ -357,6 +357,7 @@ class TestEmailTest extends Base
             'values' => array_merge(array_map('strval', \Kanboard\Plugin\Steward\Model\SettingsSchema::defaults()), ['steward_test_email' => '1']),
             'features' => \Kanboard\Plugin\Steward\Model\SettingsSchema::FEATURES,
             'switching_forced_off' => false,
+            'login_links_forced_off' => false,
             'steward_test_email_to' => 'admin@example.test',
         ]);
         $this->assertStringContainsString('form="steward-test-email-form"', $settings);

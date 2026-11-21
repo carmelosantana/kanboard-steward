@@ -159,6 +159,76 @@ class SettingsTest extends Base
         $this->assertTrue($this->container['stewardFeatures']->isEnabled('switching'));
     }
 
+    public function testLoginLinksDefaultsOffAndRoundTripsThroughFilter(): void
+    {
+        $this->assertContains('login_links', SettingsSchema::FEATURES);
+        $this->assertSame('0', SettingsSchema::defaults()['steward_login_links']);
+        $this->assertFalse($this->container['stewardFeatures']->isEnabled('login_links'));
+        $this->assertSame(['steward_login_links' => '1'], SettingsSchema::filter(['steward_login_links' => 'on']));
+        $this->assertSame(['steward_login_links' => '0'], SettingsSchema::filter(['steward_login_links' => '']));
+
+        $this->container['configModel']->save(['steward_login_links' => '1']);
+        $this->container['memoryCache']->flush();
+        $this->assertTrue($this->container['stewardFeatures']->isEnabled('login_links'));
+        $this->assertFalse($this->container['stewardFeatures']->forcedOff('login_links'));
+        $this->assertFalse($this->container['stewardFeatures']->forcedOff('banner'));
+    }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testLoginLinksKillSwitchLeavesSwitchingAlone(): void
+    {
+        $this->assertFalse(REVERSE_PROXY_AUTH);
+        $this->container['configModel']->save(['steward_login_links' => '1', 'steward_switching' => '1']);
+        $this->container['memoryCache']->flush();
+        $flags = $this->container['stewardFeatures'];
+        $this->assertTrue($flags->isEnabled('login_links'));
+
+        define('STEWARD_DISABLE_LOGIN_LINKS', true);
+        $this->assertFalse($flags->isEnabled('login_links'));
+        $this->assertTrue($flags->forcedOff('login_links'));
+        $this->assertTrue($flags->isEnabled('switching'));
+        $this->assertFalse($flags->forcedOff('switching'));
+        $this->assertFalse($flags->switchingForcedOff());
+    }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testSwitchingKillSwitchLeavesLoginLinksAlone(): void
+    {
+        $this->container['configModel']->save(['steward_login_links' => '1', 'steward_switching' => '1']);
+        $this->container['memoryCache']->flush();
+        define('STEWARD_DISABLE_SWITCHING', true);
+        $flags = $this->container['stewardFeatures'];
+        $this->assertFalse($flags->isEnabled('switching'));
+        $this->assertTrue($flags->forcedOff('switching'));
+        $this->assertTrue($flags->isEnabled('login_links'));
+        $this->assertFalse($flags->forcedOff('login_links'));
+    }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testShowNotesLoginLinksForcedOff(): void
+    {
+        define('STEWARD_DISABLE_LOGIN_LINKS', true);
+        $this->stub([]);
+        (new StewardSettingsController($this->container))->show();
+        $this->assertStringContainsString('STEWARD_DISABLE_LOGIN_LINKS', $this->html);
+        $this->assertStringNotContainsString('STEWARD_DISABLE_SWITCHING', $this->html);
+    }
+
     public function testSettingsActionsAreAdminOnlyInAcl(): void
     {
         foreach (['show', 'save'] as $action) {
@@ -200,6 +270,7 @@ class SettingsTest extends Base
         $this->assertStringContainsString('value="45"', $this->html);
         $this->assertStringContainsString('id="form-steward_audit_retention_days"', $this->html);
         $this->assertStringContainsString('name="csrf_token"', $this->html);
+        $this->assertStringNotContainsString('STEWARD_DISABLE_LOGIN_LINKS', $this->html);
     }
 
     public function testSaveWritesOnlySchemaKeys(): void

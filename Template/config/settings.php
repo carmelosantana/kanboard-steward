@@ -8,6 +8,7 @@ $labels = [
     'explore' => t('Explore'),
     'test_email' => t('Test email'),
     'banner' => t('Announcement banner'),
+    'login_links' => t('Sign-in links'),
 ];
 ?>
 <div class="page-header">
@@ -31,6 +32,12 @@ $labels = [
             <?= $this->form->label(t('Idle timeout (minutes)'), 'steward_switch_idle_minutes') ?>
             <?= $this->form->number('steward_switch_idle_minutes', $values, [], ['min="5"', 'max="480"']) ?>
             <p class="form-help"><?= t('Between 5 and 480.') ?></p>
+        <?php endif ?>
+        <?php if ($feature === 'login_links'): ?>
+            <?php if ($login_links_forced_off): ?>
+                <p class="alert"><?= t('Sign-in links are disabled by STEWARD_DISABLE_LOGIN_LINKS or reverse-proxy authentication, whatever this switch says.') ?></p>
+            <?php endif ?>
+            <p class="form-help"><?= t('Admins can create a one-time link that signs a user in once, within 15 minutes.') ?></p>
         <?php endif ?>
         <?php if ($feature === 'test_email' && $this->app->stewardFeatures->isEnabled('test_email')): ?>
             <?= $this->render('Steward:config/test_email', ['steward_test_email_to' => $steward_test_email_to ?? '']) ?>

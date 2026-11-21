@@ -11,17 +11,32 @@ class FeatureFlags extends Base
         if (! in_array($feature, SettingsSchema::FEATURES, true)) {
             return false;
         }
-        if ($feature === 'switching' && $this->switchingForcedOff()) {
+        if ($this->forcedOff($feature)) {
             return false;
         }
         $key = SettingsSchema::featureKey($feature);
         return $this->configModel->get($key, SettingsSchema::defaults()[$key]) === '1';
     }
 
+    /** Features that config.php can turn off, each by its own constant. */
+    private const KILL_SWITCHES = [
+        'switching' => 'STEWARD_DISABLE_SWITCHING',
+        'login_links' => 'STEWARD_DISABLE_LOGIN_LINKS',
+    ];
+
     /** Ops kill switch in config.php, or reverse-proxy auth (the proxy, not Kanboard, owns identity). */
+    public function forcedOff(string $feature): bool
+    {
+        $constant = self::KILL_SWITCHES[$feature] ?? null;
+        if ($constant === null) {
+            return false;
+        }
+        return (defined($constant) && constant($constant))
+            || (defined('REVERSE_PROXY_AUTH') && REVERSE_PROXY_AUTH);
+    }
+
     public function switchingForcedOff(): bool
     {
-        return (defined('STEWARD_DISABLE_SWITCHING') && STEWARD_DISABLE_SWITCHING)
-            || (defined('REVERSE_PROXY_AUTH') && REVERSE_PROXY_AUTH);
+        return $this->forcedOff('switching');
     }
 }

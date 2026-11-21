@@ -22,6 +22,7 @@ class StewardSettingsController extends BaseController
             'values' => $values,
             'features' => SettingsSchema::FEATURES,
             'switching_forced_off' => $this->container['stewardFeatures']->switchingForcedOff(),
+            'login_links_forced_off' => $this->container['stewardFeatures']->forcedOff('login_links'),
             'steward_test_email_to' => trim((string) ($this->userModel->getById((int) $this->userSession->getId())['email'] ?? '')),
         ]));
     }

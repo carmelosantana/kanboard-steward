@@ -34,10 +34,12 @@ class ReverseProxySwitchingTest extends Base
         $this->assertTrue(REVERSE_PROXY_AUTH);
         $this->assertFalse(defined('STEWARD_DISABLE_SWITCHING'));
         (new Plugin($this->container))->initialize();
-        $this->container['configModel']->save(['steward_switching' => '1', 'steward_banner' => '1']);
+        $this->container['configModel']->save(['steward_switching' => '1', 'steward_banner' => '1', 'steward_login_links' => '1']);
         $this->container['memoryCache']->flush();
 
         $this->assertFalse($this->container['stewardFeatures']->isEnabled('switching'));
+        $this->assertFalse($this->container['stewardFeatures']->isEnabled('login_links'));
+        $this->assertTrue($this->container['stewardFeatures']->forcedOff('login_links'));
         $this->assertTrue($this->container['stewardFeatures']->isEnabled('banner'));
     }
 

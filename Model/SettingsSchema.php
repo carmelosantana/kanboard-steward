@@ -7,7 +7,7 @@ namespace Kanboard\Plugin\Steward\Model;
  */
 final class SettingsSchema
 {
-    public const FEATURES = ['markdown', 'switching', 'branding', 'project_pages', 'public_pages', 'explore', 'test_email', 'banner'];
+    public const FEATURES = ['markdown', 'switching', 'branding', 'project_pages', 'public_pages', 'explore', 'test_email', 'banner', 'login_links'];
 
     /** Features on for a fresh install; everything else starts off. */
     private const ON_BY_DEFAULT = ['markdown'];

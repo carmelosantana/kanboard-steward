@@ -3,7 +3,7 @@ namespace Kanboard\Plugin\Steward\Schema;
 
 use PDO;
 
-const VERSION = 2;
+const VERSION = 3;
 
 /** No foreign keys to users: audit rows outlive the accounts they mention. Syntax follows core app/Schema/Mssql.php. */
 function version_1(PDO $pdo)
@@ -44,4 +44,21 @@ function version_2(PDO $pdo)
           , updated_at bigint NOT NULL DEFAULT 0
         );
     ');
+}
+
+/** One-time sign-in links. Only the hash is stored; created_by has no foreign key so a deleted admin's mints still count toward the rate limit, like audit rows. */
+function version_3(PDO $pdo)
+{
+    $pdo->exec('
+        CREATE TABLE dbo.steward_login_link (
+            id int identity PRIMARY KEY
+          , user_id int NOT NULL REFERENCES dbo.users(id) ON DELETE CASCADE
+          , token_hash char(64) NOT NULL UNIQUE
+          , created_by int NULL
+          , created_at bigint NOT NULL
+          , expires_at bigint NOT NULL
+          , used_at bigint NULL
+        );
+    ');
+    $pdo->exec('CREATE INDEX steward_login_link_created_by_idx ON dbo.steward_login_link(created_by, created_at)');
 }
