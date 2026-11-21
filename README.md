@@ -128,6 +128,8 @@ and the time it stops working. Send it to the user however you like.
   cancels the earlier one, even when two admins make one at the same moment. An admin can make at most 10
   links an hour. The link is a bearer credential: whoever has it can use it, and it shows up in server access
   logs and browser history, which is why it lasts 15 minutes and works once.
+- **MySQL/MariaDB:** making a link runs a READ COMMITTED transaction, so the server needs `binlog_format`
+  ROW or MIXED (ROW is MySQL 8's default); with STATEMENT, making a link fails.
 - **Opening the link** shows "Sign in to *site* as *username*" with a **Sign in** button; only the button
   uses the link, so a chat or mail preview that opens it doesn't spend it. Someone already signed in in that
   browser is asked to sign out first.
