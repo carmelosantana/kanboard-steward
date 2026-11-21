@@ -169,10 +169,20 @@ class LoginLinks extends Base
         return ['ok' => true, 'url' => $this->url($token), 'expires_at' => $expiresAt];
     }
 
-    /** The link for $token under Kanboard's configured Application URL; never the request's Host header. */
+    /**
+     * The link for $token under Kanboard's configured Application URL, never the request's Host header (decision 17).
+     * The path is the one core's URL helper builds: `login-link/<token>` with URL rewriting on, the query-string form
+     * with it off. The helper puts the request's base directory in front; the Application URL already holds it.
+     */
     public function url(string $token): string
     {
-        return $this->appUrl().'/login-link/'.$token;
+        $helper = $this->helper->url;
+        $path = $helper->to('StewardLoginLinkController', 'confirm', ['plugin' => 'Steward', 'token' => $token]);
+        $dir = (string) $helper->dir();
+        if ($dir !== '' && str_starts_with($path, $dir)) {
+            $path = substr($path, strlen($dir));
+        }
+        return $this->appUrl().'/'.ltrim($path, '/');
     }
 
     /**

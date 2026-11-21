@@ -2,6 +2,8 @@
 require_once __DIR__.'/support/StewardTestCase.php';
 require_once __DIR__.'/support/StewardSchema.php';
 
+use Kanboard\Core\Http\Request;
+use Kanboard\Core\Http\Router;
 use Kanboard\Core\Log\Logger;
 use Kanboard\Core\Security\Role;
 use Kanboard\Model\UserModel;
@@ -94,7 +96,7 @@ class LoginLinkMintTest extends StewardTestCase
 
     private function tokenOf(array $result): string
     {
-        $this->assertMatchesRegularExpression('#/login-link/([0-9a-f]{64})$#D', $result['url']);
+        $this->assertMatchesRegularExpression('#[?&]token=([0-9a-f]{64})$#D', $result['url']);
         return substr($result['url'], -64);
     }
 
@@ -353,31 +355,76 @@ class LoginLinkMintTest extends StewardTestCase
     {
         $token = str_repeat('ab', 32);
         $this->setAppUrl(" https://kb.example/kanboard/ \n");
-        $this->assertSame('https://kb.example/kanboard/login-link/'.$token, $this->links()->url($token));
-        $this->assertStringStartsWith('https://kb.example/kanboard/login-link/', $this->links()->mint($this->ana)['url']);
+        $this->assertSame('https://kb.example/kanboard/'.self::confirmQuery($token), $this->links()->url($token));
+        $this->assertStringStartsWith('https://kb.example/kanboard/?controller=', $this->links()->mint($this->ana)['url']);
 
         $this->setAppUrl(" \t ");
         $this->assertSame(['ok' => false, 'reason' => 'no_app_url'], $this->links()->mint($this->ana));
     }
 
+    private static function confirmQuery(string $token): string
+    {
+        return '?controller=StewardLoginLinkController&action=confirm&plugin=Steward&token='.$token;
+    }
+
+    /**
+     * Decision 17: with URL rewriting off (core's default, and these tests'), the link is core's query-string form
+     * under the Application URL, never a pretty path core wouldn't route. RoutesTest covers rewriting on.
+     */
     public function testUrlUsesApplicationUrl(): void
     {
         $token = str_repeat('ab', 32);
         $cases = [
-            'https://kb.example' => 'https://kb.example/login-link/',
-            'https://kb.example/' => 'https://kb.example/login-link/',
-            'https://kb.example/kanboard' => 'https://kb.example/kanboard/login-link/',
-            'https://kb.example/kanboard/' => 'https://kb.example/kanboard/login-link/',
+            'https://kb.example' => 'https://kb.example/',
+            'https://kb.example/' => 'https://kb.example/',
+            'https://kb.example/kanboard' => 'https://kb.example/kanboard/',
+            'https://kb.example/kanboard/' => 'https://kb.example/kanboard/',
         ];
         foreach ($cases as $base => $expected) {
             $this->setAppUrl($base);
-            $this->assertSame($expected.$token, $this->links()->url($token), $base);
+            $this->assertSame($expected.self::confirmQuery($token), $this->links()->url($token), $base);
         }
 
         $this->setAppUrl('https://kb.example/kanboard');
         $result = $this->links()->mint($this->ana);
-        $this->assertStringStartsWith('https://kb.example/kanboard/login-link/', $result['url']);
+        $this->assertStringStartsWith('https://kb.example/kanboard/?controller=StewardLoginLinkController&action=confirm', $result['url']);
         $this->tokenOf($result);
+    }
+
+    /** Minted inside a web request to a subdirectory install: the request's base dir is not added a second time. */
+    public function testUrlIgnoresTheRequestBaseDirectory(): void
+    {
+        $token = str_repeat('cd', 32);
+        unset($this->container['request']);
+        $this->container['request'] = new Request($this->container, [
+            'REQUEST_METHOD' => 'POST', 'PHP_SELF' => '/kanboard/index.php', 'HTTP_HOST' => 'evil.example',
+        ], ['controller' => 'StewardLoginLinkController'], [], [], []);
+        $this->assertSame('/kanboard/', $this->container['helper']->url->dir(), 'precondition: core sees the subdirectory');
+
+        $this->setAppUrl('https://kb.example/kanboard/');
+        $this->assertSame('https://kb.example/kanboard/'.self::confirmQuery($token), $this->links()->url($token));
+    }
+
+    /** The query-string link, requested as a browser would, dispatches to confirm with the token. */
+    public function testQueryStringLinkDispatchesToConfirm(): void
+    {
+        $token = str_repeat('ef', 32);
+        $this->setAppUrl('https://kb.example/kanboard/');
+        $parts = parse_url($this->links()->url($token));
+        parse_str($parts['query'], $get);
+
+        unset($this->container['request'], $this->container['router']);
+        $this->container['request'] = new Request($this->container, [
+            'REQUEST_METHOD' => 'GET', 'PHP_SELF' => '/kanboard/index.php',
+            'REQUEST_URI' => $parts['path'].'?'.$parts['query'], 'QUERY_STRING' => $parts['query'],
+        ], $get, [], [], []);
+        $this->container['router'] = new Router($this->container);
+        $this->container['router']->dispatch();
+
+        $this->assertSame(['StewardLoginLinkController', 'confirm', 'Steward'], [
+            $this->container['router']->getController(), $this->container['router']->getAction(), $this->container['router']->getPlugin(),
+        ]);
+        $this->assertSame($token, $this->container['request']->getStringParam('token'));
     }
 
     public function testAuditFailureRefusesAndLeavesNoRow(): void

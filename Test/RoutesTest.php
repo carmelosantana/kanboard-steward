@@ -119,4 +119,17 @@ class RoutesTest extends StewardTestCase
         $this->container['route']->findRoute('steward/user/3/login-link');
         $this->assertSame('3', $this->container['request']->getStringParam('user_id'));
     }
+
+    /** Decision 17, rewriting on: the link is the pretty path under the Application URL, and it routes to confirm. */
+    public function testLoginLinkUrlIsThePrettyPathWithRewritingOn(): void
+    {
+        foreach (['https://kb.example/', 'https://kb.example/kanboard'] as $base) {
+            $this->container['configModel']->save(['application_url' => $base]);
+            $this->container['memoryCache']->flush();
+            $this->assertSame(rtrim($base, '/').'/login-link/'.self::TOKEN, $this->container['stewardLoginLinks']->url(self::TOKEN), $base);
+        }
+        $this->assertSame(['controller' => 'StewardLoginLinkController', 'action' => 'confirm', 'plugin' => 'Steward'],
+            $this->container['route']->findRoute('login-link/'.self::TOKEN));
+        $this->assertSame(self::TOKEN, $this->container['request']->getStringParam('token'));
+    }
 }

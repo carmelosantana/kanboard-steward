@@ -71,7 +71,7 @@ class Plugin extends Base
         $this->route->addRoute('explore', 'StewardExploreController', 'index', 'Steward');
         $this->route->addRoute('explore/:identifier', 'StewardExploreController', 'show', 'Steward');
         $this->route->addRoute('steward/user/:user_id/login-link', 'StewardLoginLinkController', 'create', 'Steward');
-        // LoginLinks::url() builds this path under application_url.
+        // With URL rewriting on, LoginLinks::url() emits this path (through core's URL helper) under application_url.
         $this->route->addRoute('login-link/:token', 'StewardLoginLinkController', 'confirm', 'Steward');
         $this->route->addRoute('login-link/:token/redeem', 'StewardLoginLinkController', 'redeem', 'Steward');
 

@@ -271,12 +271,12 @@ class LoginLinkControllerTest extends StewardTestCase
 
         $this->assertSame(200, $this->status);
         $this->assertNull($this->redirect);
-        $this->assertSame(1, preg_match_all('#https://kb\.example/login-link/([0-9a-f]{64})#', $this->body, $m));
+        $this->assertSame(1, preg_match_all('#https://kb\.example/\?controller=StewardLoginLinkController&amp;action=confirm&amp;plugin=Steward&amp;token=([0-9a-f]{64})#', $this->body, $m));
         $row = $this->row($m[1][0]);
         $this->assertSame($this->ana, (int) $row['user_id']);
         $this->assertSame('no-store', $this->headers()['Cache-Control'] ?? null);
 
-        $this->assertMatchesRegularExpression('#<input[^>]+readonly[^>]+value="https://kb\.example/login-link/[0-9a-f]{64}"#', $this->body);
+        $this->assertMatchesRegularExpression('#<input[^>]+readonly[^>]+value="https://kb\.example/\?controller=StewardLoginLinkController&amp;action=confirm&amp;plugin=Steward&amp;token=[0-9a-f]{64}"#', $this->body);
         $this->assertMatchesRegularExpression('#<button[^>]+data-steward-copy="[^"]+"#', $this->body);
         $this->assertStringContainsString('Works once, until '.date('g:i a', (int) $row['expires_at']), $this->body);
         $this->assertStringContainsString('Creating a new link cancels this one.', $this->body);
