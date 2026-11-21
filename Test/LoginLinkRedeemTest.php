@@ -386,6 +386,19 @@ class LoginLinkRedeemTest extends StewardTestCase
         $this->assertSame($this->ana, $this->sessionUserId());
     }
 
+    /** Decision 21: a live token with the wrong sequence is stale, as core's RememberMeSessionModel::find() sees it. */
+    public function testRememberMeCookieWithAWrongSequenceIsStale(): void
+    {
+        $token = $this->mintFor();
+        $s = $this->container['rememberMeSessionModel']->create(self::ADMIN, self::IP, self::UA);
+        $this->cookies = [RememberMeCookie::COOKIE_NAME => $s['token'].'|'.str_repeat('f', 64)];
+        $this->request();
+        $this->cookie->expects($this->once())->method('remove');
+
+        $this->assertNull($this->links()->redeem($token));
+        $this->assertSame($this->ana, $this->sessionUserId());
+    }
+
     public function testExpiredRememberMeSessionIsStale(): void
     {
         $token = $this->mintFor();

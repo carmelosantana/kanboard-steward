@@ -6,7 +6,6 @@ use Kanboard\Core\Http\RememberMeCookie;
 use Kanboard\Core\Security\AuthenticationManager;
 use Kanboard\Core\Security\Role;
 use Kanboard\Event\AuthSuccessEvent;
-use Kanboard\Model\RememberMeSessionModel;
 use PDO;
 use Throwable;
 
@@ -254,7 +253,7 @@ class LoginLinks extends Base
     }
 
     /**
-     * A session user, or a remember-me cookie that still matches a live remember-me session (decision 15: public
+     * A session user, or a remember-me cookie whose token and sequence match a live remember-me session (decision 15: public
      * routes skip core's remember-me sign-in). A cookie matching none, or one core can't decode, is stale: removed.
      * redeem() checks it first; the confirm page asks too, so it can say "sign out first" before the POST.
      */
@@ -269,8 +268,9 @@ class LoginLinks extends Base
         }
         // Core's decode() warns on a value without `token|sequence`: never hand it one.
         $credentials = is_string($raw) && str_contains($raw, '|') ? $this->rememberMeCookie->read() : false;
-        if ($credentials !== false && $this->db->table(RememberMeSessionModel::TABLE)
-                ->eq('token', (string) $credentials['token'])->gt('expiration', time())->exists()) {
+        // Token and sequence, as core's own remember-me sign-in matches them (decision 21).
+        if ($credentials !== false
+            && $this->rememberMeSessionModel->find((string) $credentials['token'], (string) $credentials['sequence'])) {
             return true;
         }
         $this->rememberMeCookie->remove();
