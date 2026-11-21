@@ -451,8 +451,8 @@ class LoginLinkMintTest extends StewardTestCase
         });
         $this->spyOnAuditWrites(function (string $event) {
             if ($event === 'login_link.created') {
-                // Fails the created write itself: PicoDb rolls the mint back.
-                $this->container['db']->getConnection()->exec('DROP TABLE '.LoginLinks::TABLE.'_nope_'.random_int(1, 9));
+                // Fails mid-transaction with a plain SQL error (DDL would commit implicitly on MySQL).
+                $this->container['db']->getConnection()->exec('SELECT missing_column FROM steward_no_such_table');
             }
         });
 
