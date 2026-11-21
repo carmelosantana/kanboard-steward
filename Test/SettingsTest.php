@@ -272,6 +272,17 @@ class SettingsTest extends StewardTestCase
         $this->assertStringNotContainsString('STEWARD_DISABLE_LOGIN_LINKS', $this->html);
     }
 
+    /** The lifetime in the help text comes from LoginLinks::LIFETIME, not a second copy in the template. */
+    public function testLoginLinksHelpTextUsesTheLifetimeConstant(): void
+    {
+        $this->stub([]);
+        (new StewardSettingsController($this->container))->show();
+
+        $minutes = intdiv(\Kanboard\Plugin\Steward\Model\LoginLinks::LIFETIME, 60);
+        $this->assertStringContainsString("within $minutes minutes", $this->html);
+        $this->assertStringNotContainsString('15 minutes', file_get_contents(__DIR__.'/../Template/config/settings.php'));
+    }
+
     public function testSaveWritesOnlySchemaKeys(): void
     {
         $this->container['configModel']->save(['application_url' => 'http://kb.example/']);

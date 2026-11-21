@@ -37,7 +37,7 @@ $labels = [
             <?php if ($login_links_forced_off): ?>
                 <p class="alert"><?= t('Sign-in links are disabled by STEWARD_DISABLE_LOGIN_LINKS or reverse-proxy authentication, whatever this switch says.') ?></p>
             <?php endif ?>
-            <p class="form-help"><?= t('Admins can create a one-time link that signs a user in once, within 15 minutes.') ?></p>
+            <p class="form-help"><?= t('Admins can create a one-time link that signs a user in once, within %d minutes.', intdiv(\Kanboard\Plugin\Steward\Model\LoginLinks::LIFETIME, 60)) ?></p>
         <?php endif ?>
         <?php if ($feature === 'test_email' && $this->app->stewardFeatures->isEnabled('test_email')): ?>
             <?= $this->render('Steward:config/test_email', ['steward_test_email_to' => $steward_test_email_to ?? '']) ?>

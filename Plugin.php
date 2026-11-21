@@ -10,6 +10,7 @@ use Kanboard\Plugin\Steward\Model\Banner;
 use Kanboard\Plugin\Steward\Model\Branding;
 use Kanboard\Plugin\Steward\Model\FeatureFlags;
 use Kanboard\Plugin\Steward\Model\FeatureGate;
+use Kanboard\Plugin\Steward\Model\LoginLinks;
 use Kanboard\Plugin\Steward\Model\SwitchGuard;
 use Kanboard\Plugin\Steward\Model\SwitchService;
 use Kanboard\Plugin\Steward\Subscriber\LoginSubscriber;
@@ -28,6 +29,7 @@ class Plugin extends Base
         $this->container[AclCheck::FLAG] = false;
         $this->container['stewardAcl'] = fn ($c) => new AclCheck($c);
         $this->container['stewardSwitching'] = fn ($c) => new SwitchService($c);
+        $this->container['stewardLoginLinks'] = fn ($c) => new LoginLinks($c);
         $this->container['stewardBranding'] = fn ($c) => new Branding($c);
         $this->container['stewardBanner'] = fn ($c) => new Banner($c);
 
