@@ -347,20 +347,30 @@ class LoginLinkMintTest extends StewardTestCase
             "nothing touches the link table before the lock:\n".implode("\n", $sql));
     }
 
-    /** Swaps in an AuditLog that calls $spy(event) just before each write, inside whatever transaction is open. */
-    private function spyOnAuditWrites(callable $spy): void
+    /**
+     * Swaps in an AuditLog that calls $spy(event) just before each write and $after(event) just after it, inside
+     * whatever transaction is open.
+     */
+    private function spyOnAuditWrites(callable $spy, ?callable $after = null): void
     {
         $audit = new class($this->container) extends AuditLog {
             /** @var callable|null */
             public $spy = null;
+            /** @var callable|null */
+            public $after = null;
 
             public function logInternal(string $event, ?int $actorId, ?int $subjectId, array $details = [], ?string $switchId = null): bool
             {
                 ($this->spy)($event);
-                return parent::logInternal($event, $actorId, $subjectId, $details, $switchId);
+                $ok = parent::logInternal($event, $actorId, $subjectId, $details, $switchId);
+                if ($this->after !== null) {
+                    ($this->after)($event);
+                }
+                return $ok;
             }
         };
         $audit->spy = $spy;
+        $audit->after = $after;
         unset($this->container['stewardAudit']);
         $this->container['stewardAudit'] = $audit;
     }
@@ -464,6 +474,31 @@ class LoginLinkMintTest extends StewardTestCase
         $this->assertFalse($result['ok']);
         $this->assertNotContains('login_link.created', $events);
         $this->assertSame([], $this->rows());
+    }
+
+    /**
+     * A mint that rolls back after its created row was queued drops that row's hook call and stops deferring: the
+     * next audit write in the request reaches the listeners at once, and the dropped row never does.
+     */
+    public function testRollbackAfterTheCreatedRowWasQueuedDiscardsItAndStopsDeferring(): void
+    {
+        $events = [];
+        $this->container['hook']->on(AuditLog::HOOK, function (array $row) use (&$events) {
+            $events[] = $row['event'];
+        });
+        $this->spyOnAuditWrites(fn () => null, function (string $event) {
+            if ($event === 'login_link.created') {
+                // The row is stored and its hook call queued; now the transaction goes away under mint.
+                $this->container['db']->cancelTransaction();
+            }
+        });
+
+        $this->assertSame(['ok' => false, 'reason' => 'store_failed'], $this->links()->mint($this->ana));
+        $this->assertSame([], $this->rows());
+        $this->assertSame(['login_link.refused'], $events, 'the refusal is heard; the rolled-back created row is not');
+
+        $this->assertTrue($this->container['stewardAudit']->logInternal('steward.test', self::ADMIN, null));
+        $this->assertSame(['login_link.refused', 'steward.test'], $events, 'a later write fires its hook at once');
     }
 
     /** Housekeeping after the commit can't turn a stored, audited link into an error. */
