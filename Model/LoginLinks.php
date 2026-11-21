@@ -206,8 +206,9 @@ class LoginLinks extends Base
     /**
      * A session user, or a remember-me cookie that still matches a live remember-me session (decision 15: public
      * routes skip core's remember-me sign-in). A cookie matching none, or one core can't decode, is stale: removed.
+     * redeem() checks it first; the confirm page asks too, so it can say "sign out first" before the POST.
      */
-    private function signedIn(): bool
+    public function signedIn(): bool
     {
         if ($this->userSession->isLogged()) {
             return true;

@@ -475,6 +475,10 @@ class SwitchEndTest extends StewardTestCase
         // The one core sign-in: a login link, whose redeem() refuses admin targets (LoginLinkRedeemTest).
         $this->assertSame(1, preg_match_all('/userSession\s*->\s*initialize/', $all));
         $this->assertSame(1, preg_match_all('/userSession\s*->\s*initialize\s*\(\s*\$user\s*\)/', $sources[$root.'/Model/LoginLinks.php']));
+        // ...and only the redeem action calls it: a POST with core's CSRF token, behind the feature switch.
+        $redeemers = array_keys(array_filter($sources, fn ($src) => preg_match('/->\s*redeem\s*\(/', $src) === 1));
+        $this->assertSame([$root.'/Controller/StewardLoginLinkController.php'], $redeemers);
+        $this->assertSame(1, preg_match_all('/->\s*redeem\s*\(/', $sources[$root.'/Controller/StewardLoginLinkController.php']));
         $this->assertSame(1, preg_match_all('/session_set\s*\(\s*[\'"]user[\'"]/', $all), 'only writeUser() sets the user');
         $this->assertSame(1, preg_match_all('/->writeUser\s*\(/', $all));
         $this->assertSame(1, preg_match_all('/->writeUser\s*\(\s*\$target\s*\)/', $all));

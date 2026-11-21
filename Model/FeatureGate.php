@@ -38,6 +38,9 @@ class FeatureGate extends Base
         'StewardBannerController::show' => 'banner',
         'StewardBannerController::save' => 'banner',
         'StewardBannerController::dismiss' => 'banner',
+        'StewardLoginLinkController::create' => 'login_links',
+        'StewardLoginLinkController::confirm' => 'login_links',
+        'StewardLoginLinkController::redeem' => 'login_links',
     ];
 
     /** Static and viewer-independent on purpose: it must not tell anyone which feature, or that it exists. */

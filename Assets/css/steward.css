@@ -49,6 +49,12 @@
     text-decoration: underline;
 }
 
+/* Sign-in links (1.1): the profile sidebar's POST form reads like its links; the shown-once field and Copy. */
+.steward-sidebar-form form { margin: 0; }
+.steward-sidebar-form .steward-link-button { color: inherit; }
+.steward-login-link-field { display: flex; gap: 8px; align-items: center; max-width: 720px; }
+.steward-login-link-field input[type="text"] { flex: 1 1 auto; min-width: 0; max-width: none; font-family: monospace; }
+
 /* Branding settings page */
 .steward-branding-preview { max-width: 100%; height: auto; max-height: 128px; }
 

@@ -70,6 +70,10 @@ class Plugin extends Base
         $this->route->addRoute('public/project/:token', 'StewardPublicController', 'show', 'Steward');
         $this->route->addRoute('explore', 'StewardExploreController', 'index', 'Steward');
         $this->route->addRoute('explore/:identifier', 'StewardExploreController', 'show', 'Steward');
+        $this->route->addRoute('steward/user/:user_id/login-link', 'StewardLoginLinkController', 'create', 'Steward');
+        // LoginLinks::url() builds this path under application_url.
+        $this->route->addRoute('login-link/:token', 'StewardLoginLinkController', 'confirm', 'Steward');
+        $this->route->addRoute('login-link/:token/redeem', 'StewardLoginLinkController', 'redeem', 'Steward');
 
         // Always registered so other plugins can call it; it answers '' while branding is off.
         $this->helper->register('stewardBranding', StewardBrandingHelper::class);
@@ -122,6 +126,11 @@ class Plugin extends Base
         $this->hook->on('template:user:sidebar:actions', [
             'template' => 'Steward:user/switch_button',
             'callable' => fn (array $user) => ['steward_can_switch' => $switching()->refusalFor($user) === null],
+        ]);
+        // Sign-in links (Steward 1.1): a POST form, shown only when mint() would allow it (feature off: 'disabled').
+        $this->hook->on('template:user:sidebar:actions', [
+            'template' => 'Steward:user/login_link_button',
+            'callable' => fn (array $user) => ['steward_can_mint_link' => $this->container['stewardLoginLinks']->refusalFor($user) === null],
         ]);
         // layout/top renders the switch banner first, then the announcement banner (null while the feature is off).
         $this->hook->on('template:layout:top', [

@@ -437,6 +437,10 @@ final class SwitchActionTable
         'StewardBannerController::save' => 'blocked',
         // Dismissing as the target writes the target's user_metadata: audited like any switched write.
         'StewardBannerController::dismiss' => 'write',
+        // Minting is admin work; a switched browser is signed in, so confirm and redeem would refuse anyway.
+        'StewardLoginLinkController::create' => 'blocked',
+        'StewardLoginLinkController::confirm' => 'blocked',
+        'StewardLoginLinkController::redeem' => 'blocked',
     ];
 
     /**

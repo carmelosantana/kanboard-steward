@@ -37,6 +37,9 @@ class AclCheck extends Base
             ['StewardBannerController', ['show', 'save'], Role::APP_ADMIN],
             // Any signed-in user dismisses the banner for themselves.
             ['StewardBannerController', ['dismiss'], Role::APP_USER],
+            ['StewardLoginLinkController', ['create'], Role::APP_ADMIN],
+            // Anonymous: the token in the URL is the only key; the browser must not be signed in.
+            ['StewardLoginLinkController', ['confirm', 'redeem'], Role::APP_PUBLIC],
         ],
         'projectAccessMap' => [
             ['StewardProjectSettingsController', ['show', 'save'], Role::PROJECT_MANAGER],

@@ -32,7 +32,12 @@ class RoutesTest extends StewardTestCase
         'public/project/abc' => ['StewardPublicController', 'show', 'public_pages'],
         'explore' => ['StewardExploreController', 'index', 'explore'],
         'explore/ALPHA' => ['StewardExploreController', 'show', 'explore'],
+        'steward/user/3/login-link' => ['StewardLoginLinkController', 'create', 'login_links'],
+        'login-link/'.self::TOKEN => ['StewardLoginLinkController', 'confirm', 'login_links'],
+        'login-link/'.self::TOKEN.'/redeem' => ['StewardLoginLinkController', 'redeem', 'login_links'],
     ];
+
+    private const TOKEN = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
     protected function setUp(): void
     {
@@ -104,5 +109,14 @@ class RoutesTest extends StewardTestCase
         }
         $this->assertSame('StewardExploreController', $live->findRoute('explore')['controller']);
         $this->assertSame('StewardExploreController', $live->findRoute('explore/ALPHA')['controller']);
+    }
+
+    /** The link's route hands the controller the token as written, as LoginLinks::url() builds it. */
+    public function testLoginLinkRouteCarriesTheToken(): void
+    {
+        $this->container['route']->findRoute('login-link/'.self::TOKEN);
+        $this->assertSame(self::TOKEN, $this->container['request']->getStringParam('token'));
+        $this->container['route']->findRoute('steward/user/3/login-link');
+        $this->assertSame('3', $this->container['request']->getStringParam('user_id'));
     }
 }
