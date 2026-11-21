@@ -471,7 +471,10 @@ class SwitchEndTest extends StewardTestCase
             }
         }
         $all = implode("\n", $sources);
-        $this->assertSame(0, preg_match_all('/userSession\s*->\s*initialize|userProfile|\$_SESSION\s*\[\s*[\'"]user/', $all));
+        $this->assertSame(0, preg_match_all('/userProfile|\$_SESSION\s*\[\s*[\'"]user/', $all));
+        // The one core sign-in: a login link, whose redeem() refuses admin targets (LoginLinkRedeemTest).
+        $this->assertSame(1, preg_match_all('/userSession\s*->\s*initialize/', $all));
+        $this->assertSame(1, preg_match_all('/userSession\s*->\s*initialize\s*\(\s*\$user\s*\)/', $sources[$root.'/Model/LoginLinks.php']));
         $this->assertSame(1, preg_match_all('/session_set\s*\(\s*[\'"]user[\'"]/', $all), 'only writeUser() sets the user');
         $this->assertSame(1, preg_match_all('/->writeUser\s*\(/', $all));
         $this->assertSame(1, preg_match_all('/->writeUser\s*\(\s*\$target\s*\)/', $all));

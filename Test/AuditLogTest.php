@@ -303,6 +303,38 @@ class AuditLogTest extends StewardTestCase
         $this->assertSame(1, $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login.failure')->gte('created_at', time() - 60)->count());
     }
 
+    public function testFailureEventsListTheCappedEvents(): void
+    {
+        $this->assertSame(['login.failure', 'login_link.failed'], AuditLog::FAILURE_EVENTS);
+    }
+
+    public function testPruneCapsEachFailureEventOnItsOwn(): void
+    {
+        $base = time() - 30000;
+        $this->bulk(10003, 'login_link.failed', $base);
+        $this->bulk(4000, 'login.failure', $base);
+
+        $this->audit()->prune();
+
+        $this->assertSame(10000, $this->audit()->count(['event' => 'login_link.failed']));
+        $this->assertSame(4000, $this->audit()->count(['event' => 'login.failure']), 'one event never eats the other\'s rows');
+        $oldest = $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login_link.failed')->asc('created_at')->findOneColumn('created_at');
+        $this->assertSame($base + 3, (int) $oldest);
+    }
+
+    public function testLinkFailureWriteEnforcesItsOwnCap(): void
+    {
+        $this->container['configModel']->save([AuditLog::LAST_PRUNE => (string) time()]);
+        $this->bulk(10000, 'login_link.failed', time() - 20000);
+        $this->bulk(10000, 'login.failure', time() - 20000);
+
+        $this->assertTrue($this->audit()->logInternal('login_link.failed', null, null, ['reason' => 'unknown']));
+
+        $this->assertSame(10000, $this->audit()->count(['event' => 'login_link.failed']));
+        $this->assertSame(10000, $this->audit()->count(['event' => 'login.failure']));
+        $this->assertSame(1, $this->container['db']->table(AuditLog::TABLE)->eq('event', 'login_link.failed')->gte('created_at', time() - 60)->count());
+    }
+
     public function testHousekeepingFailureInsideACallersTransactionNeverLosesAReportedRow(): void
     {
         $db = $this->container['db'];

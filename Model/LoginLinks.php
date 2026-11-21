@@ -2,7 +2,11 @@
 namespace Kanboard\Plugin\Steward\Model;
 
 use Kanboard\Core\Base;
+use Kanboard\Core\Http\RememberMeCookie;
+use Kanboard\Core\Security\AuthenticationManager;
 use Kanboard\Core\Security\Role;
+use Kanboard\Event\AuthSuccessEvent;
+use Kanboard\Model\RememberMeSessionModel;
 
 /**
  * Container key `stewardLoginLinks`: one-time sign-in links (Steward 1.1). Only the token's sha256 is stored;
@@ -16,6 +20,9 @@ class LoginLinks extends Base
     /** Links one admin may mint per rolling RATE_WINDOW seconds, remint-killed rows included. */
     public const RATE_LIMIT = 10;
     public const RATE_WINDOW = 3600;
+    /** Auth type core records for a link sign-in (last_logins, AuthSuccessEvent). */
+    public const AUTH_TYPE = 'StewardLoginLink';
+    private const TOKEN = '/^[0-9a-f]{64}$/D';
     /** Rows that expired longer ago than this are deleted on each mint. */
     private const KEEP_EXPIRED = 86400;
 
@@ -37,11 +44,76 @@ class LoginLinks extends Base
             $target === null => 'not_found',
             empty($target['is_active']) => 'inactive',
             (int) ($target['id'] ?? 0) === (int) ($actor['id'] ?? 0) => 'self',
-            ($target['role'] ?? null) === Role::APP_ADMIN => 'target_admin',
-            ! empty($target['is_ldap_user']) => 'external_auth',
-            $this->userLockingModel->isLocked((string) ($target['username'] ?? '')) => 'locked',
-            default => null,
+            default => $this->targetRefusal($target),
         };
+    }
+
+    /**
+     * The user a live link for $token would sign in, for the confirm page; null when redeem() would fail now
+     * (whatever the browser's own state). Read-only: never claims the link, never audits.
+     */
+    public function peek(string $token): ?array
+    {
+        if (! preg_match(self::TOKEN, $token)) {
+            return null;
+        }
+        $row = $this->findByToken($token);
+        if ($row === null || $row['used_at'] !== null || (int) $row['expires_at'] <= time()) {
+            return null;
+        }
+        $user = $this->userModel->getById((int) $row['user_id']) ?: null;
+        return $this->targetRefusal($user) === null ? $user : null;
+    }
+
+    /**
+     * Signs the browser in as the link's user: null on success, else the reason (`signed_in`, `malformed`,
+     * `unknown`, `used`, `expired`, `target_invalid`, `audit_failed`). The link is spent by the atomic claim, so a
+     * target that changed since the mint, or a failed audit write, still uses it up. Every failure but
+     * `signed_in` (which touches no link) writes `login_link.failed`.
+     */
+    public function redeem(string $token): ?string
+    {
+        if ($this->signedIn()) {
+            return 'signed_in';
+        }
+        if (! preg_match(self::TOKEN, $token)) {
+            return $this->fail('malformed', null);
+        }
+        $row = $this->findByToken($token);
+        if ($row === null) {
+            return $this->fail('unknown', null);
+        }
+        $id = (int) $row['id'];
+        $userId = (int) $row['user_id'];
+
+        // PicoDb's update() returns a bool, not the rows changed; only a raw statement tells two racing redeems
+        // apart. Strict `>`: a remint sets expires_at = now, and that row must be dead in the same second.
+        $now = time();
+        $claim = $this->db->execute(
+            'UPDATE '.self::TABLE.' SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?',
+            [$now, $id, $now]
+        );
+        if ($claim === false || $claim->rowCount() !== 1) {
+            $usedAt = $this->db->table(self::TABLE)->eq('id', $id)->findOneColumn('used_at');
+            return $this->fail($usedAt !== null && $usedAt !== false ? 'used' : 'expired', $userId);
+        }
+
+        $user = $this->userModel->getById($userId) ?: null;
+        if ($this->targetRefusal($user) !== null) {
+            return $this->fail('target_invalid', $userId);
+        }
+
+        $createdBy = $row['created_by'] === null ? null : (int) $row['created_by'];
+        if (! $this->stewardAudit->logInternal('login_link.used', $createdBy, $userId, ['link_id' => $id])) {
+            return $this->fail('audit_failed', $userId);
+        }
+
+        // As core's login does; hasRememberMe may be left over from a failed password attempt in this session,
+        // and core would turn it into a long-lived remember-me login for the link's user.
+        $this->userSession->initialize($user);
+        session_remove('hasRememberMe');
+        $this->dispatcher->dispatch(new AuthSuccessEvent(self::AUTH_TYPE), AuthenticationManager::EVENT_SUCCESS);
+        return null;
     }
 
     /** @return array{ok:true,url:string,expires_at:int}|array{ok:false,reason:string} */
@@ -97,6 +169,59 @@ class LoginLinks extends Base
     public function url(string $token): string
     {
         return rtrim((string) $this->configModel->get('application_url', ''), '/').'/login-link/'.$token;
+    }
+
+    /** Why $user can't be signed in by a link (decisions 13 and 14), or null. */
+    private function targetRefusal(?array $user): ?string
+    {
+        return match (true) {
+            $user === null => 'not_found',
+            empty($user['is_active']) => 'inactive',
+            ($user['role'] ?? null) === Role::APP_ADMIN => 'target_admin',
+            ! empty($user['is_ldap_user']) => 'external_auth',
+            $this->userLockingModel->isLocked((string) ($user['username'] ?? '')) => 'locked',
+            default => null,
+        };
+    }
+
+    private function findByToken(string $token): ?array
+    {
+        return $this->db->table(self::TABLE)->eq('token_hash', hash('sha256', $token))->findOne() ?: null;
+    }
+
+    /**
+     * A session user, or a remember-me cookie that still matches a live remember-me session (decision 15: public
+     * routes skip core's remember-me sign-in). A cookie matching none, or one core can't decode, is stale: removed.
+     */
+    private function signedIn(): bool
+    {
+        if ($this->userSession->isLogged()) {
+            return true;
+        }
+        $raw = $this->request->getCookie(RememberMeCookie::COOKIE_NAME);
+        if (empty($raw)) {
+            return false;
+        }
+        // Core's decode() warns on a value without `token|sequence`: never hand it one.
+        $credentials = is_string($raw) && str_contains($raw, '|') ? $this->rememberMeCookie->read() : false;
+        if ($credentials !== false && $this->db->table(RememberMeSessionModel::TABLE)
+                ->eq('token', (string) $credentials['token'])->gt('expiration', time())->exists()) {
+            return true;
+        }
+        $this->rememberMeCookie->remove();
+        return false;
+    }
+
+    private function fail(string $reason, ?int $userId): string
+    {
+        if ($reason === 'audit_failed'
+            || ! $this->stewardAudit->logInternal('login_link.failed', null, $userId, ['reason' => $reason])) {
+            $this->logger->error(sprintf(
+                'Steward: sign-in link failed (%s) for user %s; the audit log could not record it.',
+                $reason, $userId ?? '-'
+            ));
+        }
+        return $reason;
     }
 
     private function actor(): array

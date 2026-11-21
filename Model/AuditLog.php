@@ -17,7 +17,8 @@ class AuditLog extends Base
     public const HOOK = 'steward:audit';
     /** Config key, not in SettingsSchema, so the settings form can never set it. */
     public const LAST_PRUNE = 'steward_audit_last_prune';
-    public const FAILURE_EVENT = 'login.failure';
+    /** Events anyone can cause from a public page; each keeps only its newest FAILURE_CAP rows, on its own. */
+    public const FAILURE_EVENTS = ['login.failure', 'login_link.failed'];
     public const FAILURE_CAP = 10000;
     public const DETAILS_MAX = 4096;
     public const USER_AGENT_MAX = 255;
@@ -99,7 +100,9 @@ class AuditLog extends Base
                 $days = (int) $defaults['steward_audit_retention_days'];
             }
             $this->db->table(self::TABLE)->lt('created_at', time() - $days * self::DAY)->remove();
-            $this->capFailures();
+            foreach (self::FAILURE_EVENTS as $event) {
+                $this->capFailures($event);
+            }
         } catch (Throwable $e) {
             $this->logger->error('Steward audit: prune failed: '.$e->getMessage());
         }
@@ -137,8 +140,8 @@ class AuditLog extends Base
         // Housekeeping waits for the next write outside a transaction: on any SQL error PicoDb cancels the
         // open transaction, which would roll back this row (and the caller's work) after we report success.
         if (! $this->db->getConnection()->inTransaction()) {
-            if ($event === self::FAILURE_EVENT) {
-                $this->tryCapFailures();
+            if (in_array($event, self::FAILURE_EVENTS, true)) {
+                $this->tryCapFailures($event);
             }
             $this->prune();
         }
@@ -179,25 +182,25 @@ class AuditLog extends Base
         }
     }
 
-    private function tryCapFailures(): void
+    private function tryCapFailures(string $event): void
     {
         try {
-            $this->capFailures();
+            $this->capFailures($event);
         } catch (Throwable $e) {
             $this->logger->error('Steward audit: failure cap failed: '.$e->getMessage());
         }
     }
 
-    /** Keeps the newest FAILURE_CAP failure rows: deletes everything at or below the id of the first row past the cap. */
-    private function capFailures(): void
+    /** Keeps the newest FAILURE_CAP $event rows: deletes every $event row at or below the id of the first past the cap. */
+    private function capFailures(string $event): void
     {
         $cutoff = $this->db->table(self::TABLE)
-            ->eq('event', self::FAILURE_EVENT)
+            ->eq('event', $event)
             ->desc('id')
             ->limit(1)->offset(self::FAILURE_CAP)
             ->findOneColumn('id');
         if ($cutoff !== null && $cutoff !== false) {
-            $this->db->table(self::TABLE)->eq('event', self::FAILURE_EVENT)->lte('id', (int) $cutoff)->remove();
+            $this->db->table(self::TABLE)->eq('event', $event)->lte('id', (int) $cutoff)->remove();
         }
     }
 
