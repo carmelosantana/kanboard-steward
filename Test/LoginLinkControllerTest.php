@@ -55,6 +55,7 @@ class LoginLinkControllerTest extends StewardTestCase
         \Kanboard\Plugin\Steward\Schema\version_1($pdo);
         \Kanboard\Plugin\Steward\Schema\version_2($pdo);
         \Kanboard\Plugin\Steward\Schema\version_3($pdo);
+        \Kanboard\Plugin\Steward\Schema\version_4($pdo);
         unset($pdo);
         (new Plugin($this->container))->initialize();
         $this->setFeature(true);

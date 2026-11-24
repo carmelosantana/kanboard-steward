@@ -68,7 +68,7 @@ class AuditLogTest extends StewardTestCase
         foreach (['Sqlite', 'Mysql', 'Postgres', 'Mssql'] as $d) {
             $src = file_get_contents(__DIR__."/../Schema/$d.php");
             $this->assertStringContainsString('namespace Kanboard\Plugin\Steward\Schema;', $src, $d);
-            $this->assertStringContainsString('const VERSION = 3;', $src, $d);
+            $this->assertStringContainsString('const VERSION = 4;', $src, $d);
             $this->assertStringContainsString('function version_1(PDO $pdo)', $src, $d);
             foreach (['steward_audit', 'created_at', 'event', 'actor_user_id', 'subject_user_id', 'switch_id', 'ip', 'user_agent', 'details'] as $col) {
                 $this->assertStringContainsString($col, $src, "$d: $col");

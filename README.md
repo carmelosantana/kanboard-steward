@@ -146,7 +146,8 @@ The feature is off by default; turn it on under **Settings → Steward**. `STEWA
 `config.php`, or reverse-proxy authentication (`REVERSE_PROXY_AUTH`), keeps it off whatever the setting says.
 Making, refusing, using and failed links are audited as `login_link.created`, `login_link.refused`,
 `login_link.used` and `login_link.failed`. A failed link is one that was used, expired or no longer valid for
-its user; a mistyped or unknown link isn't audited, since nothing ties it to a user and anyone could send one.
+its user, and only its first failure is recorded; trying the same link again writes nothing more. A mistyped or
+unknown link isn't audited, since nothing ties it to a user and anyone could send one.
 
 ## Security model
 

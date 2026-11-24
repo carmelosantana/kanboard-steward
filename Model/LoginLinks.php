@@ -74,7 +74,8 @@ class LoginLinks extends Base
      * Signs the browser in as the link's user: null on success, else the reason (`signed_in`, `malformed`,
      * `unknown`, `used`, `expired`, `target_invalid`, `audit_failed`). The link is spent by the atomic claim, so a
      * target that changed since the mint, or a failed audit write, still uses it up. `used`, `expired`,
-     * `target_invalid` and `audit_failed` write `login_link.failed`; `signed_in`, `malformed` and `unknown` write nothing.
+     * `target_invalid` and `audit_failed` write `login_link.failed`, once per link (decision 22: replaying a spent
+     * link writes nothing more); `signed_in`, `malformed` and `unknown` write nothing.
      */
     public function redeem(string $token): ?string
     {
@@ -102,17 +103,17 @@ class LoginLinks extends Base
         );
         if ($claim === false || $claim->rowCount() !== 1) {
             $usedAt = $this->db->table(self::TABLE)->eq('id', $id)->findOneColumn('used_at');
-            return $this->fail($usedAt !== null && $usedAt !== false ? 'used' : 'expired', $userId);
+            return $this->fail($usedAt !== null && $usedAt !== false ? 'used' : 'expired', $userId, $id);
         }
 
         $user = $this->userModel->getById($userId) ?: null;
         if ($this->targetRefusal($user) !== null) {
-            return $this->fail('target_invalid', $userId);
+            return $this->fail('target_invalid', $userId, $id);
         }
 
         $createdBy = $row['created_by'] === null ? null : (int) $row['created_by'];
         if (! $this->stewardAudit->logInternal('login_link.used', $createdBy, $userId, ['link_id' => $id])) {
-            return $this->fail('audit_failed', $userId);
+            return $this->fail('audit_failed', $userId, $id);
         }
 
         // As core's login does; hasRememberMe may be left over from a failed password attempt in this session,
@@ -318,8 +319,17 @@ class LoginLinks extends Base
         return false;
     }
 
-    private function fail(string $reason, ?int $userId): string
+    private function fail(string $reason, ?int $userId, int $linkId): string
     {
+        // Decision 22: only the first failure per link is audited. The flag flips atomically, so racing replays
+        // of the same spent link write one row between them.
+        $first = $this->db->execute(
+            'UPDATE '.self::TABLE.' SET failure_logged = 1 WHERE id = ? AND failure_logged = 0',
+            [$linkId]
+        );
+        if ($first === false || $first->rowCount() !== 1) {
+            return $reason;
+        }
         if ($reason === 'audit_failed'
             || ! $this->stewardAudit->logInternal('login_link.failed', null, $userId, ['reason' => $reason])) {
             $this->logger->error(sprintf(

@@ -3,7 +3,7 @@ namespace Kanboard\Plugin\Steward\Schema;
 
 use PDO;
 
-const VERSION = 3;
+const VERSION = 4;
 
 /** No foreign keys to users: audit rows outlive the accounts they mention. Syntax follows core app/Schema/Mssql.php. */
 function version_1(PDO $pdo)
@@ -61,4 +61,10 @@ function version_3(PDO $pdo)
         );
     ');
     $pdo->exec('CREATE INDEX steward_login_link_created_by_idx ON dbo.steward_login_link(created_by, created_at)');
+}
+
+/** Decision 22: set once a link's first failed redeem is audited, so replaying a spent link writes no further rows. */
+function version_4(PDO $pdo)
+{
+    $pdo->exec('ALTER TABLE dbo.steward_login_link ADD failure_logged int NOT NULL DEFAULT 0');
 }

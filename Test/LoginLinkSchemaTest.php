@@ -8,6 +8,7 @@ class LoginLinkSchemaTest extends StewardTestCase
     {
         parent::setUp();
         \Kanboard\Plugin\Steward\Schema\version_3($this->pdo());
+        \Kanboard\Plugin\Steward\Schema\version_4($this->pdo());
     }
 
     /** Not kept in a property: a PDO outliving tearDown holds the connection open (Postgres then can't drop the database). */
@@ -26,8 +27,10 @@ class LoginLinkSchemaTest extends StewardTestCase
     {
         foreach (['Sqlite', 'Mysql', 'Postgres', 'Mssql'] as $d) {
             $src = file_get_contents(__DIR__."/../Schema/$d.php");
-            $this->assertStringContainsString('const VERSION = 3;', $src, $d);
+            $this->assertStringContainsString('const VERSION = 4;', $src, $d);
             $this->assertStringContainsString('function version_3(PDO $pdo)', $src, $d);
+            $this->assertStringContainsString('function version_4(PDO $pdo)', $src, $d);
+            $this->assertMatchesRegularExpression('/failure_logged\s+(INTEGER|INT|int)\s+NOT NULL DEFAULT 0/i', $src, "$d failure_logged");
             foreach (['steward_login_link', 'user_id', 'token_hash', 'created_by', 'created_at', 'expires_at', 'used_at'] as $col) {
                 $this->assertStringContainsString($col, $src, "$d: $col");
             }
@@ -37,10 +40,16 @@ class LoginLinkSchemaTest extends StewardTestCase
         }
     }
 
-    public function testVersion3CreatesTheTable(): void
+    public function testVersions3And4CreateTheTable(): void
     {
         $columns = steward_table_columns($this->pdo(), 'steward_login_link');
-        $this->assertSame(['id', 'user_id', 'token_hash', 'created_by', 'created_at', 'expires_at', 'used_at'], $columns);
+        $this->assertSame(['id', 'user_id', 'token_hash', 'created_by', 'created_at', 'expires_at', 'used_at', 'failure_logged'], $columns);
+    }
+
+    public function testFailureLoggedDefaultsToZero(): void
+    {
+        $this->insert(1, hash('sha256', 'fresh'));
+        $this->assertSame(0, (int) $this->pdo()->query("SELECT failure_logged FROM steward_login_link")->fetchColumn());
     }
 
     public function testTokenHashIsUnique(): void

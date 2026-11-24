@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Sign-in links:** replaying a link that was already used, has expired or no longer fits its user is audited
+  once per link. Further attempts with the same link write nothing, so a leaked link can't be used to fill the
+  audit log. Schema version 4 adds a `failure_logged` column to `steward_login_link`.
 - The switched-user read row for Presence names `PresenceSettingsController`, Presence's settings controller
   from 1.0.2. With an older Presence the page is blocked while switched, as for any unlisted action.
 

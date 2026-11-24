@@ -45,6 +45,7 @@ class LoginLinkRedeemTest extends StewardTestCase
         \Kanboard\Plugin\Steward\Schema\version_1($pdo);
         \Kanboard\Plugin\Steward\Schema\version_2($pdo);
         \Kanboard\Plugin\Steward\Schema\version_3($pdo);
+        \Kanboard\Plugin\Steward\Schema\version_4($pdo);
         unset($pdo);
         (new Plugin($this->container))->initialize();
         $this->container['configModel']->save(['steward_login_links' => '1', 'application_url' => 'https://kb.example/']);
@@ -255,6 +256,61 @@ class LoginLinkRedeemTest extends StewardTestCase
 
         $this->assertSame('expired', $this->links()->redeem($first));
         $this->assertNull($this->links()->redeem($second));
+    }
+
+    /** Decision 22: a known used link can be replayed by anyone holding it; only the first replay is audited. */
+    public function testReplaysOfAUsedLinkWriteOneFailureRow(): void
+    {
+        $token = $this->mintFor();
+        $this->assertNull($this->links()->redeem($token));
+        $this->signOut();
+
+        foreach (range(1, 5) as $i) {
+            $this->assertSame('used', $this->links()->redeem($token));
+        }
+
+        $this->assertSame([['reason' => 'used', 'subject' => $this->ana, 'actor' => null]], $this->failures());
+    }
+
+    public function testReplaysOfAnExpiredLinkWriteOneFailureRow(): void
+    {
+        $token = $this->mintFor();
+        $this->container['db']->table(LoginLinks::TABLE)->eq('token_hash', hash('sha256', $token))->update(['expires_at' => time() - 60]);
+
+        foreach (range(1, 3) as $i) {
+            $this->assertSame('expired', $this->links()->redeem($token));
+        }
+
+        $this->assertSame([['reason' => 'expired', 'subject' => $this->ana, 'actor' => null]], $this->failures());
+    }
+
+    public function testReplaysAfterATargetChangeWriteNoFurtherRows(): void
+    {
+        $token = $this->mintFor();
+        $this->container['userModel']->disable($this->ana);
+        $this->container['memoryCache']->flush();
+
+        $this->assertSame('target_invalid', $this->links()->redeem($token));
+        $this->assertSame('used', $this->links()->redeem($token));
+        $this->assertSame('used', $this->links()->redeem($token));
+
+        $this->assertSame([['reason' => 'target_invalid', 'subject' => $this->ana, 'actor' => null]], $this->failures());
+    }
+
+    /** Two links for the same user each get their own first failure row. */
+    public function testEachLinkGetsItsOwnFirstFailureRow(): void
+    {
+        $first = $this->mintFor();
+        $second = $this->mintFor();
+
+        $this->assertSame('expired', $this->links()->redeem($first));
+        $this->assertNull($this->links()->redeem($second));
+        $this->signOut();
+        $this->assertSame('used', $this->links()->redeem($second));
+        $this->assertSame('expired', $this->links()->redeem($first));
+        $this->assertSame('used', $this->links()->redeem($second));
+
+        $this->assertSame(['expired', 'used'], array_column($this->failures(), 'reason'));
     }
 
     public function testUnknownTokenFails(): void
