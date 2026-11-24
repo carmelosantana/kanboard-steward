@@ -188,7 +188,7 @@ class Plugin extends Base
      */
     public function applyBranding(): void
     {
-        $this->template->setTemplateOverride('layout', 'Steward:layout');
+        \Kanboard\Plugin\Steward\Core\LayoutChain::register($this->template, 'Steward:layout');
         $this->template->setTemplateOverride('header/title', 'Steward:header/title');
         $this->hook->on('template:layout:head', ['template' => 'Steward:layout/favicon']);
         $this->hook->on('template:auth:login-form:before', [
@@ -203,7 +203,7 @@ class Plugin extends Base
     public function getPluginName(): string        { return 'Steward'; }
     public function getPluginDescription(): string { return t('Admin tools, branding, Markdown and project pages for Kanboard.'); }
     public function getPluginAuthor(): string      { return 'Carmelo Santana'; }
-    public function getPluginVersion(): string     { return '1.1.0'; }
+    public function getPluginVersion(): string     { return '1.2.0'; }
     public function getPluginHomepage(): string    { return 'https://github.com/carmelosantana/kanboard-steward'; }
     public function getCompatibleVersion(): string { return '>=1.2.47'; }
 }

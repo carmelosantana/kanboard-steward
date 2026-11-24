@@ -1,7 +1,7 @@
 {
     "name": "Steward",
     "description": "Admin tools, branding, Markdown and project pages for Kanboard.",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "author": "Carmelo Santana",
     "homepage": "https://github.com/carmelosantana/kanboard-steward",
     "license": "MIT",

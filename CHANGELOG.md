@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — Unreleased
+
+### Changed
+
+- **Layout wrappers stack.** Steward's layout wrapper now includes whichever layout was registered before it, instead of core's own. Another wrapper, such as Harbor's server-rendered theme, keeps working alongside Steward's branding in either load order.
+
 ## 1.1.0 — 2026-11-21
 
 ### Added
