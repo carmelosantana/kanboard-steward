@@ -452,8 +452,8 @@ final class SwitchActionTable
             'PulseController::index' => 'read',
             'PulseController::project' => 'read',
         ]],
-        'Presence' => ['Kanboard\Plugin\Presence\Controller\SettingsController', [
-            'SettingsController::show' => 'read',
+        'Presence' => ['Kanboard\Plugin\Presence\Controller\PresenceSettingsController', [
+            'PresenceSettingsController::show' => 'read',
         ]],
         'Bigboard' => ['Kanboard\Plugin\Bigboard\Controller\Bigboard', [
             'Bigboard::index' => 'read',

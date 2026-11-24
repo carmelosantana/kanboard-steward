@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1 — unreleased
+
+### Changed
+
+- The switched-user read row for Presence names `PresenceSettingsController`, Presence's settings controller
+  from 1.0.2. With an older Presence the page is blocked while switched, as for any unlisted action.
+
 ## 1.2.0 — 2026-11-24
 
 ### Changed

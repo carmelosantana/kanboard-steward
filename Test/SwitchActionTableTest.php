@@ -162,4 +162,12 @@ class SwitchActionTableTest extends StewardTestCase
         }
         $this->assertArrayHasKey('Pulse', $suite, 'Pulse is installed (or its stand-in)');
     }
+
+    /** Presence named its settings controller after itself (#7337), so its row follows. */
+    public function testPresenceRowNamesItsScopedSettingsController(): void
+    {
+        [$class, $actions] = SwitchActionTable::SUITE['Presence'];
+        $this->assertSame('Kanboard\Plugin\Presence\Controller\PresenceSettingsController', $class);
+        $this->assertSame(['PresenceSettingsController::show' => 'read'], $actions);
+    }
 }
